@@ -39,46 +39,72 @@
     <main class="layout layout-doctor">
       <section class="panel panel-ask">
         <h2>Ask AI</h2>
-        <p class="hint">Try: “at 6”, “today”, “named Priya”, “show all”, or any natural question</p>
-        <form method="post" class="form ask-form">
+        <p class="hint">Ask as many questions as you want. Tap <strong>No more questions</strong> when you’re done.</p>
+
+        {% if chat_history %}
+          <div class="chat-thread" id="chat-thread">
+            {% for turn in chat_history %}
+              <article class="chat-turn">
+                <p class="chat-q"><span>You</span> {{ turn.question }}</p>
+                <p class="ask-summary">{{ turn.summary }}</p>
+                {% if turn.results %}
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Date</th>
+                          <th>Time</th>
+                          <th>Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for row in turn.results %}
+                          <tr>
+                            <td data-label="Name">{{ row.Name }}</td>
+                            <td data-label="Date">{{ row.Date }}</td>
+                            <td data-label="Time">{{ row.Time }}</td>
+                            <td data-label="Reason">{{ row.Reason }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <p class="empty">No matching appointments.</p>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <form method="post" class="form ask-form" id="ask-form">
           <input type="hidden" name="action" value="ask" />
           <label>
-            Question
-            <input type="text" name="question" value="{{ question }}" placeholder="What appointments do I have at 6?" required enterkeyhint="search" />
+            {% if chat_history %}Next question{% else %}Question{% endif %}
+            <input
+              type="text"
+              name="question"
+              value=""
+              placeholder="What appointments do I have at 6?"
+              required
+              autofocus
+              enterkeyhint="send"
+              autocomplete="off"
+            />
           </label>
-          <button type="submit" class="btn btn-secondary">Ask</button>
+          <div class="ask-actions">
+            <button type="submit" class="btn btn-secondary">
+              {% if chat_history %}Ask another{% else %}Ask{% endif %}
+            </button>
+          </div>
         </form>
 
-        {% if ask_summary %}
-          <p class="ask-summary">{{ ask_summary }}</p>
-          {% if ask_result is not none %}
-            {% if ask_result %}
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Date</th>
-                      <th>Time</th>
-                      <th>Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for row in ask_result %}
-                      <tr>
-                        <td data-label="Name">{{ row.Name }}</td>
-                        <td data-label="Date">{{ row.Date }}</td>
-                        <td data-label="Time">{{ row.Time }}</td>
-                        <td data-label="Reason">{{ row.Reason }}</td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            {% else %}
-              <p class="empty">No matching appointments.</p>
-            {% endif %}
-          {% endif %}
+        {% if chat_history %}
+          <form method="post" class="clear-chat-form">
+            <input type="hidden" name="action" value="clear_chat" />
+            <button type="submit" class="btn btn-ghost">No more questions / Cancel</button>
+          </form>
         {% endif %}
       </section>
 
@@ -87,7 +113,7 @@
         <ul class="tips">
           <li>Send patients only the booking link above.</li>
           <li>New submissions appear in this list and in Excel.</li>
-          <li>Ask AI in plain English to find appointments by time, date, or name.</li>
+          <li>Keep asking follow-ups — the chat stays until you cancel.</li>
         </ul>
       </section>
     </main>
@@ -124,5 +150,9 @@
       {% endif %}
     </section>
   </div>
+  <script>
+    const thread = document.getElementById("chat-thread");
+    if (thread) thread.scrollTop = thread.scrollHeight;
+  </script>
 </body>
 </html>

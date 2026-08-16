@@ -702,34 +702,52 @@ def doctor_logout():
 @app.route("/doctor", methods=["GET", "POST"])
 @require_doctor
 def doctor_dashboard():
-    ask_result = None
-    ask_summary = None
-    question = ""
+    from flask import session
+
     ai_status = (
         "AI assistant connected"
         if os.getenv("GROQ_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
         else "Smart filter active"
     )
+    chat_history = list(session.get("doctor_chat") or [])
 
-    if request.method == "POST" and request.form.get("action") == "ask":
-        question = request.form.get("question", "").strip()
-        rows = read_appointments()
-        if not question:
-            flash("Type a question first.", "error")
-        else:
-            ai = ask_free_ai(question, rows)
-            if ai is not None:
-                ask_result, ask_summary = ai
+    if request.method == "POST":
+        action = request.form.get("action")
+
+        if action == "clear_chat":
+            session["doctor_chat"] = []
+            chat_history = []
+            flash("Chat cleared. Ask a new question anytime.", "success")
+            return redirect(url_for("doctor_dashboard"))
+
+        if action == "ask":
+            question = request.form.get("question", "").strip()
+            rows = read_appointments()
+            if not question:
+                flash("Type a question first.", "error")
             else:
-                ask_result, ask_summary = filter_with_rules(question, rows)
+                ai = ask_free_ai(question, rows)
+                if ai is not None:
+                    ask_result, ask_summary = ai
+                else:
+                    ask_result, ask_summary = filter_with_rules(question, rows)
+                chat_history.append(
+                    {
+                        "question": question,
+                        "summary": ask_summary,
+                        "results": ask_result,
+                    }
+                )
+                # Keep the thread manageable in the session cookie
+                chat_history = chat_history[-12:]
+                session["doctor_chat"] = chat_history
+            return redirect(url_for("doctor_dashboard"))
 
     appointments = read_appointments()
     return render_template(
         "doctor.html",
         appointments=appointments,
-        ask_result=ask_result,
-        ask_summary=ask_summary,
-        question=question,
+        chat_history=chat_history,
         excel_path=storage_label(),
         ai_status=ai_status,
         patient_link=url_for("patient_form", _external=True),
