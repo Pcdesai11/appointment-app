@@ -13,10 +13,10 @@
   <div class="page">
     <header class="header">
       <p class="brand">Appointments</p>
-      <p class="tagline">Save bookings to Excel on this PC, then ask in plain English.</p>
+      <p class="tagline">Every booking is appended to one shared Excel file. Ask in plain English to filter it.</p>
       <p class="excel-path">
-        Storage: <code>{{ excel_path }}</code>
-        · <a href="{{ url_for('download_excel') }}">Download Excel</a>
+        <code>{{ excel_path }}</code>
+        · <a href="{{ url_for('download_excel') }}">Open / download appointments.xlsx</a>
       </p>
     </header>
 

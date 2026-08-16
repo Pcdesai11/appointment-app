@@ -23,8 +23,12 @@ load_dotenv()
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 EXCEL_PATH = DATA_DIR / "appointments.xlsx"
-BLOB_PATHNAME = "appointments.json"
+BLOB_PATHNAME = "appointments.xlsx"
+JSON_LEGACY_PATHNAME = "appointments.json"
 COLUMNS = ["Timestamp", "Name", "Date", "Time", "Reason"]
+XLSX_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 app = Flask(
     __name__,
@@ -71,8 +75,8 @@ def using_blob() -> bool:
 
 def storage_label() -> str:
     if using_blob():
-        return "Vercel Blob (cloud) — download Excel anytime"
-    return str(EXCEL_PATH)
+        return "One shared file: appointments.xlsx (cloud)"
+    return f"One shared file: {EXCEL_PATH}"
 
 
 # --- Excel helpers -----------------------------------------------------------------
@@ -145,12 +149,12 @@ def _workbook_bytes_from_rows(rows: list[dict[str, str]]) -> bytes:
 BLOB_API = "https://vercel.com/api/blob"
 
 
-def _blob_list() -> list[dict[str, Any]]:
+def _blob_list(prefix: str | None = None) -> list[dict[str, Any]]:
     import urllib.parse
     import urllib.request
 
     token = os.environ["BLOB_READ_WRITE_TOKEN"]
-    qs = urllib.parse.urlencode({"prefix": BLOB_PATHNAME})
+    qs = urllib.parse.urlencode({"prefix": prefix or BLOB_PATHNAME})
     req = urllib.request.Request(
         f"{BLOB_API}?{qs}",
         headers={
@@ -171,14 +175,18 @@ def _blob_download(url: str) -> bytes:
         return resp.read()
 
 
-def _blob_upload(data: bytes, content_type: str = "application/json") -> None:
+def _blob_upload(
+    data: bytes,
+    pathname: str = BLOB_PATHNAME,
+    content_type: str = XLSX_CONTENT_TYPE,
+) -> None:
     import urllib.error
     import urllib.parse
     import urllib.request
 
     token = os.environ["BLOB_READ_WRITE_TOKEN"]
     # Path-style PUT matches the Blob API contract used by x-api-version 7.
-    url = f"{BLOB_API}/{urllib.parse.quote(BLOB_PATHNAME, safe='/')}"
+    url = f"{BLOB_API}/{urllib.parse.quote(pathname, safe='/')}"
     req = urllib.request.Request(
         url,
         data=data,
@@ -201,60 +209,82 @@ def _blob_upload(data: bytes, content_type: str = "application/json") -> None:
         raise RuntimeError(f"Blob upload failed ({exc.code}): {detail}") from exc
 
 
-def _read_cloud_rows() -> list[dict[str, str]]:
-    blobs = _blob_list()
-    match = next((b for b in blobs if b.get("pathname") == BLOB_PATHNAME), None)
-    if not match or not match.get("url"):
-        return []
-    raw = _blob_download(match["url"]).decode("utf-8")
+def _find_blob(pathname: str) -> dict[str, Any] | None:
+    blobs = _blob_list(pathname)
+    return next((b for b in blobs if b.get("pathname") == pathname), None)
+
+
+def _migrate_legacy_json_if_needed() -> bytes | None:
+    """If an older JSON blob exists and Excel does not, convert once into Excel."""
+    excel_blob = _find_blob(BLOB_PATHNAME)
+    if excel_blob and excel_blob.get("url"):
+        return None
+    json_blob = _find_blob(JSON_LEGACY_PATHNAME)
+    if not json_blob or not json_blob.get("url"):
+        return None
+    raw = _blob_download(json_blob["url"]).decode("utf-8")
     data = json.loads(raw or "[]")
-    if not isinstance(data, list):
-        return []
     rows: list[dict[str, str]] = []
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        rows.append({c: str(item.get(c, "") or "") for c in COLUMNS})
-    return rows
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict):
+                rows.append({c: str(item.get(c, "") or "") for c in COLUMNS})
+    excel_bytes = _workbook_bytes_from_rows(rows)
+    _blob_upload(excel_bytes)
+    return excel_bytes
 
 
-def _write_cloud_rows(rows: list[dict[str, str]]) -> None:
-    _blob_upload(json.dumps(rows, ensure_ascii=False).encode("utf-8"))
-
-
-def read_appointments() -> list[dict[str, str]]:
+def read_excel_bytes() -> bytes:
+    """Return the single shared appointments.xlsx bytes (local or cloud)."""
     if using_blob():
-        return _read_cloud_rows()
-    return _rows_from_workbook_bytes(_read_local_excel_bytes())
+        match = _find_blob(BLOB_PATHNAME)
+        if match and match.get("url"):
+            return _blob_download(match["url"])
+        migrated = _migrate_legacy_json_if_needed()
+        if migrated is not None:
+            return migrated
+        blank = _blank_workbook_bytes()
+        _blob_upload(blank)
+        return blank
 
-
-def append_appointment(name: str, date_str: str, time_str: str, reason: str) -> None:
-    rows = read_appointments()
-    rows.append(
-        {
-            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Name": name.strip(),
-            "Date": date_str,
-            "Time": time_str,
-            "Reason": reason.strip(),
-        }
-    )
-    if using_blob():
-        _write_cloud_rows(rows)
-    else:
-        _write_local_excel_bytes(_workbook_bytes_from_rows(rows))
-
-
-def _read_local_excel_bytes() -> bytes:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not EXCEL_PATH.exists():
         EXCEL_PATH.write_bytes(_blank_workbook_bytes())
     return EXCEL_PATH.read_bytes()
 
 
-def _write_local_excel_bytes(data: bytes) -> None:
+def write_excel_bytes(data: bytes) -> None:
+    """Overwrite the same appointments.xlsx file (never create a new name)."""
+    if using_blob():
+        _blob_upload(data)
+        return
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     EXCEL_PATH.write_bytes(data)
+
+
+def read_appointments() -> list[dict[str, str]]:
+    return _rows_from_workbook_bytes(read_excel_bytes())
+
+
+def append_appointment(name: str, date_str: str, time_str: str, reason: str) -> None:
+    """Append one row into the same Excel workbook and save it back."""
+    data = read_excel_bytes()
+    wb = load_workbook(io.BytesIO(data))
+    ws = wb.active
+    if ws.max_row == 0 or ws.cell(1, 1).value is None:
+        ws.append(COLUMNS)
+    ws.append(
+        [
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            name.strip(),
+            date_str,
+            time_str,
+            reason.strip(),
+        ]
+    )
+    buf = io.BytesIO()
+    wb.save(buf)
+    write_excel_bytes(buf.getvalue())
 
 
 # --- Ask / filter ------------------------------------------------------------------
@@ -502,11 +532,11 @@ def index():
 
 @app.route("/download.xlsx")
 def download_excel():
-    rows = read_appointments()
-    data = _workbook_bytes_from_rows(rows)
+    # Same shared workbook every time — not a newly invented file name.
+    data = read_excel_bytes()
     return send_file(
         io.BytesIO(data),
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mimetype=XLSX_CONTENT_TYPE,
         as_attachment=True,
         download_name="appointments.xlsx",
     )
