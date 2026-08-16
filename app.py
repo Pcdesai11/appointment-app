@@ -618,8 +618,8 @@ def ask_free_ai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[st
             indices = payload.get("indices") or []
             summary = payload.get("summary") or "Here are the matching appointments."
             valid = [i for i in indices if isinstance(i, int) and 0 <= i < len(rows)]
-            source = "Groq (free)" if "groq.com" in base_url else "OpenAI"
-            return [rows[i] for i in valid], f"{summary} [{source}]"
+            source = "AI" if "groq.com" in base_url else "AI"
+            return [rows[i] for i in valid], str(summary)
         except Exception:
             continue
     return None
@@ -707,9 +707,9 @@ def doctor_dashboard():
     ask_summary = None
     question = ""
     ai_status = (
-        "Groq free AI connected"
-        if os.getenv("GROQ_API_KEY", "").strip()
-        else "Built-in filter active — add GROQ_API_KEY for free Llama AI"
+        "AI assistant connected"
+        if os.getenv("GROQ_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+        else "Smart filter active"
     )
 
     if request.method == "POST" and request.form.get("action") == "ask":
