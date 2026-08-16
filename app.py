@@ -23,7 +23,7 @@ load_dotenv()
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 EXCEL_PATH = DATA_DIR / "appointments.xlsx"
-BLOB_PATHNAME = "appointments.xlsx"
+BLOB_PATHNAME = "appointments.json"
 COLUMNS = ["Timestamp", "Name", "Date", "Time", "Reason"]
 
 app = Flask(
@@ -71,7 +71,7 @@ def using_blob() -> bool:
 
 def storage_label() -> str:
     if using_blob():
-        return "Vercel Blob (Excel in the cloud)"
+        return "Vercel Blob (cloud) — download Excel anytime"
     return str(EXCEL_PATH)
 
 
@@ -171,7 +171,8 @@ def _blob_download(url: str) -> bytes:
         return resp.read()
 
 
-def _blob_upload(data: bytes) -> None:
+def _blob_upload(data: bytes, content_type: str = "application/json") -> None:
+    import urllib.error
     import urllib.parse
     import urllib.request
 
@@ -182,44 +183,50 @@ def _blob_upload(data: bytes) -> None:
         data=data,
         headers={
             "Authorization": f"Bearer {token}",
+            "Content-Type": content_type,
             "x-api-version": "7",
             "x-vercel-blob-access": "public",
             "x-allow-overwrite": "1",
             "x-add-random-suffix": "0",
-            "x-content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "x-content-type": content_type,
         },
         method="PUT",
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            resp.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Blob upload failed ({exc.code}): {detail}") from exc
 
 
-def _read_excel_bytes() -> bytes:
-    if using_blob():
-        blobs = _blob_list()
-        match = next((b for b in blobs if b.get("pathname") == BLOB_PATHNAME), None)
-        if not match:
-            data = _blank_workbook_bytes()
-            _blob_upload(data)
-            return data
-        return _blob_download(match["url"])
+def _read_cloud_rows() -> list[dict[str, str]]:
+    blobs = _blob_list()
+    match = next((b for b in blobs if b.get("pathname") == BLOB_PATHNAME), None)
+    if not match or not match.get("url"):
+        empty: list[dict[str, str]] = []
+        _blob_upload(json.dumps(empty).encode("utf-8"))
+        return empty
+    raw = _blob_download(match["url"]).decode("utf-8")
+    data = json.loads(raw or "[]")
+    if not isinstance(data, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        rows.append({c: str(item.get(c, "") or "") for c in COLUMNS})
+    return rows
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not EXCEL_PATH.exists():
-        EXCEL_PATH.write_bytes(_blank_workbook_bytes())
-    return EXCEL_PATH.read_bytes()
 
-
-def _write_excel_bytes(data: bytes) -> None:
-    if using_blob():
-        _blob_upload(data)
-        return
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    EXCEL_PATH.write_bytes(data)
+def _write_cloud_rows(rows: list[dict[str, str]]) -> None:
+    _blob_upload(json.dumps(rows, ensure_ascii=False).encode("utf-8"))
 
 
 def read_appointments() -> list[dict[str, str]]:
-    return _rows_from_workbook_bytes(_read_excel_bytes())
+    if using_blob():
+        return _read_cloud_rows()
+    return _rows_from_workbook_bytes(_read_local_excel_bytes())
 
 
 def append_appointment(name: str, date_str: str, time_str: str, reason: str) -> None:
@@ -233,7 +240,22 @@ def append_appointment(name: str, date_str: str, time_str: str, reason: str) -> 
             "Reason": reason.strip(),
         }
     )
-    _write_excel_bytes(_workbook_bytes_from_rows(rows))
+    if using_blob():
+        _write_cloud_rows(rows)
+    else:
+        _write_local_excel_bytes(_workbook_bytes_from_rows(rows))
+
+
+def _read_local_excel_bytes() -> bytes:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if not EXCEL_PATH.exists():
+        EXCEL_PATH.write_bytes(_blank_workbook_bytes())
+    return EXCEL_PATH.read_bytes()
+
+
+def _write_local_excel_bytes(data: bytes) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    EXCEL_PATH.write_bytes(data)
 
 
 # --- Ask / filter ------------------------------------------------------------------
@@ -481,7 +503,8 @@ def index():
 
 @app.route("/download.xlsx")
 def download_excel():
-    data = _read_excel_bytes()
+    rows = read_appointments()
+    data = _workbook_bytes_from_rows(rows)
     return send_file(
         io.BytesIO(data),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
