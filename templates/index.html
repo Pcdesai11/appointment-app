@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#e8f1f4" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Appointments</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +18,7 @@
       <p class="tagline">Every booking is appended to one shared Excel file. Ask in plain English to filter it.</p>
       <p class="excel-path">
         <code>{{ excel_path }}</code>
-        · <a href="{{ url_for('download_excel') }}">Open / download appointments.xlsx</a>
+        <a href="{{ url_for('download_excel') }}">Download appointments.xlsx</a>
       </p>
     </header>
 
@@ -33,12 +35,12 @@
     <main class="layout">
       <section class="panel">
         <h2>New appointment</h2>
-        <p class="hint">Anyone on your network who opens this page can submit.</p>
+        <p class="hint">Anyone with the link can submit.</p>
         <form method="post" class="form">
           <input type="hidden" name="action" value="add" />
           <label>
             Name
-            <input type="text" name="name" required placeholder="Priya Sharma" autocomplete="name" />
+            <input type="text" name="name" required placeholder="Priya Sharma" autocomplete="name" enterkeyhint="next" />
           </label>
           <div class="row">
             <label>
@@ -52,7 +54,7 @@
           </div>
           <label>
             Reason
-            <textarea name="reason" rows="3" required placeholder="Dental checkup"></textarea>
+            <textarea name="reason" rows="3" required placeholder="Dental checkup" enterkeyhint="done"></textarea>
           </label>
           <button type="submit" class="btn btn-primary">Save to Excel</button>
         </form>
@@ -60,12 +62,12 @@
 
       <section class="panel panel-ask">
         <h2>Ask AI</h2>
-        <p class="hint">Try: “at 6”, “6pm”, “today”, “named Priya”, “show all”, or just a name/reason word</p>
+        <p class="hint">Try: “at 6”, “6pm”, “today”, “named Priya”, “show all”</p>
         <form method="post" class="form ask-form">
           <input type="hidden" name="action" value="ask" />
           <label>
             Question
-            <input type="text" name="question" value="{{ question }}" placeholder="Tell me my appointments at 6:00" required />
+            <input type="text" name="question" value="{{ question }}" placeholder="Appointments at 6" required enterkeyhint="search" />
           </label>
           <button type="submit" class="btn btn-secondary">Ask</button>
         </form>
@@ -87,10 +89,10 @@
                   <tbody>
                     {% for row in ask_result %}
                       <tr>
-                        <td>{{ row.Name }}</td>
-                        <td>{{ row.Date }}</td>
-                        <td>{{ row.Time }}</td>
-                        <td>{{ row.Reason }}</td>
+                        <td data-label="Name">{{ row.Name }}</td>
+                        <td data-label="Date">{{ row.Date }}</td>
+                        <td data-label="Time">{{ row.Time }}</td>
+                        <td data-label="Reason">{{ row.Reason }}</td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -121,11 +123,11 @@
             <tbody>
               {% for row in appointments %}
                 <tr>
-                  <td>{{ row.Name }}</td>
-                  <td>{{ row.Date }}</td>
-                  <td>{{ row.Time }}</td>
-                  <td>{{ row.Reason }}</td>
-                  <td>{{ row.Timestamp }}</td>
+                  <td data-label="Name">{{ row.Name }}</td>
+                  <td data-label="Date">{{ row.Date }}</td>
+                  <td data-label="Time">{{ row.Time }}</td>
+                  <td data-label="Reason">{{ row.Reason }}</td>
+                  <td data-label="Saved">{{ row.Timestamp }}</td>
                 </tr>
               {% endfor %}
             </tbody>
