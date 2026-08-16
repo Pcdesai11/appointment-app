@@ -111,13 +111,21 @@ def _workbook_bytes_from_rows(rows: list[dict[str, str]]) -> bytes:
 
 # --- Blob storage ------------------------------------------------------------------
 
+BLOB_API = "https://vercel.com/api/blob"
+
+
 def _blob_list() -> list[dict[str, Any]]:
+    import urllib.parse
     import urllib.request
 
     token = os.environ["BLOB_READ_WRITE_TOKEN"]
+    qs = urllib.parse.urlencode({"prefix": BLOB_PATHNAME})
     req = urllib.request.Request(
-        f"https://blob.vercel-storage.com?prefix={BLOB_PATHNAME}",
-        headers={"Authorization": f"Bearer {token}"},
+        f"{BLOB_API}?{qs}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "x-api-version": "7",
+        },
         method="GET",
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -133,21 +141,21 @@ def _blob_download(url: str) -> bytes:
 
 
 def _blob_upload(data: bytes) -> None:
+    import urllib.parse
     import urllib.request
 
     token = os.environ["BLOB_READ_WRITE_TOKEN"]
-    # overwrite existing pathname
-    url = (
-        "https://blob.vercel-storage.com/"
-        f"?pathname={BLOB_PATHNAME}&access=public&allowOverwrite=true&addRandomSuffix=false"
-    )
+    qs = urllib.parse.urlencode({"pathname": BLOB_PATHNAME})
     req = urllib.request.Request(
-        url,
+        f"{BLOB_API}?{qs}",
         data=data,
         headers={
             "Authorization": f"Bearer {token}",
-            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "x-api-version": "7",
+            "x-vercel-blob-access": "public",
+            "x-allow-overwrite": "1",
+            "x-add-random-suffix": "0",
+            "x-content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         },
         method="PUT",
     )
