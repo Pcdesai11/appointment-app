@@ -618,7 +618,6 @@ def ask_free_ai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[st
             indices = payload.get("indices") or []
             summary = payload.get("summary") or "Here are the matching appointments."
             valid = [i for i in indices if isinstance(i, int) and 0 <= i < len(rows)]
-            source = "AI" if "groq.com" in base_url else "AI"
             return [rows[i] for i in valid], str(summary)
         except Exception:
             continue
