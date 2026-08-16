@@ -6,3 +6,6 @@ data/*.xlsx
 .vercel
 *.egg-info/
 .DS_Store
+
+.vercel
+.env*

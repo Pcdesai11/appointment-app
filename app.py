@@ -34,6 +34,37 @@ app = Flask(
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "appointment-local-dev-key")
 
 
+class _VercelPathMiddleware:
+    """Restore the browser path when Vercel rewrites to /api/index."""
+
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        original = (
+            environ.get("HTTP_X_VERCEL_ORIGINAL_PATH")
+            or environ.get("HTTP_X_INVOKE_PATH")
+            or environ.get("HTTP_X_FORWARDED_URI")
+            or ""
+        )
+        path = original.split("?", 1)[0]
+        if path.startswith("http"):
+            from urllib.parse import urlparse
+
+            path = urlparse(path).path
+        # If rewrite collapsed everything to /api/index, prefer the request URI path.
+        req_uri = environ.get("REQUEST_URI") or environ.get("RAW_URI") or ""
+        if (not path or path.startswith("/api/index")) and req_uri:
+            path = req_uri.split("?", 1)[0]
+        if path and path != environ.get("PATH_INFO"):
+            environ["PATH_INFO"] = path
+            environ["SCRIPT_NAME"] = ""
+        return self.wsgi_app(environ, start_response)
+
+
+app.wsgi_app = _VercelPathMiddleware(app.wsgi_app)
+
+
 def using_blob() -> bool:
     return bool(os.getenv("BLOB_READ_WRITE_TOKEN", "").strip())
 
@@ -398,9 +429,8 @@ def ask_openai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[str
         return None
 
 
-# --- Routes ------------------------------------------------------------------------
-
 @app.route("/", methods=["GET", "POST"])
+@app.route("/api/index", methods=["GET", "POST"])
 def index():
     ask_result = None
     ask_summary = None
