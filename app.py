@@ -177,9 +177,10 @@ def _blob_upload(data: bytes, content_type: str = "application/json") -> None:
     import urllib.request
 
     token = os.environ["BLOB_READ_WRITE_TOKEN"]
-    qs = urllib.parse.urlencode({"pathname": BLOB_PATHNAME})
+    # Path-style PUT matches the Blob API contract used by x-api-version 7.
+    url = f"{BLOB_API}/{urllib.parse.quote(BLOB_PATHNAME, safe='/')}"
     req = urllib.request.Request(
-        f"{BLOB_API}?{qs}",
+        url,
         data=data,
         headers={
             "Authorization": f"Bearer {token}",
@@ -204,9 +205,7 @@ def _read_cloud_rows() -> list[dict[str, str]]:
     blobs = _blob_list()
     match = next((b for b in blobs if b.get("pathname") == BLOB_PATHNAME), None)
     if not match or not match.get("url"):
-        empty: list[dict[str, str]] = []
-        _blob_upload(json.dumps(empty).encode("utf-8"))
-        return empty
+        return []
     raw = _blob_download(match["url"]).decode("utf-8")
     data = json.loads(raw or "[]")
     if not isinstance(data, list):
