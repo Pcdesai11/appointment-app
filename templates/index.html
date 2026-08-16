@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Appointments</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <p class="brand">Appointments</p>
+      <p class="tagline">Save bookings to Excel on this PC, then ask in plain English.</p>
+      <p class="excel-path">
+        Storage: <code>{{ excel_path }}</code>
+        · <a href="{{ url_for('download_excel') }}">Download Excel</a>
+      </p>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash flash-{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <main class="layout">
+      <section class="panel">
+        <h2>New appointment</h2>
+        <p class="hint">Anyone on your network who opens this page can submit.</p>
+        <form method="post" class="form">
+          <input type="hidden" name="action" value="add" />
+          <label>
+            Name
+            <input type="text" name="name" required placeholder="Priya Sharma" autocomplete="name" />
+          </label>
+          <div class="row">
+            <label>
+              Date
+              <input type="date" name="date" required />
+            </label>
+            <label>
+              Time
+              <input type="time" name="time" required />
+            </label>
+          </div>
+          <label>
+            Reason
+            <textarea name="reason" rows="3" required placeholder="Dental checkup"></textarea>
+          </label>
+          <button type="submit" class="btn btn-primary">Save to Excel</button>
+        </form>
+      </section>
+
+      <section class="panel panel-ask">
+        <h2>Ask AI</h2>
+        <p class="hint">Examples: “appointments at 6:00”, “tomorrow”, “named Priya”</p>
+        <form method="post" class="form ask-form">
+          <input type="hidden" name="action" value="ask" />
+          <label>
+            Question
+            <input type="text" name="question" value="{{ question }}" placeholder="Tell me my appointments at 6:00" required />
+          </label>
+          <button type="submit" class="btn btn-secondary">Ask</button>
+        </form>
+
+        {% if ask_summary %}
+          <p class="ask-summary">{{ ask_summary }}</p>
+          {% if ask_result is not none %}
+            {% if ask_result %}
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in ask_result %}
+                      <tr>
+                        <td>{{ row.Name }}</td>
+                        <td>{{ row.Date }}</td>
+                        <td>{{ row.Time }}</td>
+                        <td>{{ row.Reason }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="empty">No matching appointments.</p>
+            {% endif %}
+          {% endif %}
+        {% endif %}
+      </section>
+    </main>
+
+    <section class="panel panel-all">
+      <h2>All appointments</h2>
+      {% if appointments %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Reason</th>
+                <th>Saved at</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in appointments %}
+                <tr>
+                  <td>{{ row.Name }}</td>
+                  <td>{{ row.Date }}</td>
+                  <td>{{ row.Time }}</td>
+                  <td>{{ row.Reason }}</td>
+                  <td>{{ row.Timestamp }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="empty">No appointments yet. Use the form above.</p>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>
