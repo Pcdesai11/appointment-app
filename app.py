@@ -289,9 +289,22 @@ def append_appointment(name: str, date_str: str, time_str: str, reason: str) -> 
 
 # --- Ask / filter ------------------------------------------------------------------
 
+STOP_WORDS = {
+    "tell", "show", "list", "what", "when", "have", "appointment", "appointments",
+    "please", "find", "give", "with", "from", "that", "this", "my", "the", "and",
+    "are", "who", "booked", "schedule", "schedules", "me", "any", "get", "see",
+    "display", "looking", "look", "for", "can", "you", "your", "our", "there",
+    "here", "about", "all", "everything", "everyone", "rows", "data", "excel",
+    "do", "i", "is", "a", "an", "of", "on", "to", "in", "at", "or", "be", "was",
+    "were", "am", "pm", "o", "clock", "time", "date", "name", "reason", "which",
+    "ones", "those", "these", "some", "them", "their", "has", "had", "will",
+}
+
+
 def _normalize_time_token(raw: str) -> time | None:
     raw = raw.strip().lower().replace(".", ":")
     raw = re.sub(r"\s+", "", raw)
+    raw = raw.replace("o'clock", "").replace("oclock", "")
 
     m = re.fullmatch(r"(\d{1,2}):(\d{2})\s*(am|pm)?", raw)
     if m:
@@ -318,6 +331,14 @@ def _normalize_time_token(raw: str) -> time | None:
             return time(hour, 0)
         return None
 
+    # Bare hour: "6", "18"
+    m = re.fullmatch(r"(\d{1,2})", raw)
+    if m:
+        hour = int(m.group(1))
+        if 0 <= hour <= 23:
+            return time(hour, 0)
+        return None
+
     return None
 
 
@@ -337,12 +358,88 @@ def _row_date(value: str) -> datetime | None:
     text = str(value or "").strip()
     if not text:
         return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d"):
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d", "%m-%d-%Y", "%d-%m-%Y"):
         try:
             return datetime.strptime(text[:10], fmt)
         except ValueError:
             continue
-    return None
+    try:
+        # Lenient parse for values like "Aug 16, 2026"
+        parsed = datetime.strptime(text, "%b %d, %Y")
+        return parsed.replace(hour=0, minute=0, second=0, microsecond=0)
+    except ValueError:
+        return None
+
+
+def _extract_time_queries(q: str) -> list[tuple[time, bool, bool]]:
+    """
+    Returns list of (time, ambiguous_ampm, hour_only).
+    hour_only=True means match any minutes in that hour.
+    """
+    found: list[tuple[time, bool, bool]] = []
+
+    patterns = [
+        # at 6:00 / 6:00pm / 18:00
+        r"(?:at|around|about|by|for)?\s*(\d{1,2}:\d{2})\s*(am|pm)?",
+        # 6pm / 6 pm
+        r"(?:at|around|about|by|for)?\s*(\d{1,2})\s*(am|pm)\b",
+        # at 6 / at 6 o'clock
+        r"(?:at|around|about|by)\s+(\d{1,2})(?:\s*o'?clock)?\b",
+        # bare evening-style: "6 o'clock"
+        r"\b(\d{1,2})\s*o'?clock\b",
+    ]
+
+    seen: set[tuple[int, int, bool, bool]] = set()
+    for pattern in patterns:
+        for m in re.finditer(pattern, q, flags=re.IGNORECASE):
+            groups = [g for g in m.groups() if g is not None]
+            if not groups:
+                continue
+            token = "".join(groups)
+            # Rebuild nicer token
+            if len(groups) == 2 and groups[1] in {"am", "pm"}:
+                token = f"{groups[0]}{groups[1]}"
+            elif len(groups) == 1:
+                token = groups[0]
+            t = _normalize_time_token(token)
+            if not t:
+                continue
+            cleaned = re.sub(r"\s+", "", token.lower())
+            has_meridiem = cleaned.endswith(("am", "pm"))
+            hour_only = ":" not in cleaned and not has_meridiem
+            # "6pm" is hour_only for minutes (any minute in that hour) but not ambiguous am/pm
+            if has_meridiem and ":" not in cleaned:
+                hour_only = True
+            ambiguous = not has_meridiem
+            key = (t.hour, t.minute, ambiguous, hour_only)
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append((t, ambiguous, hour_only))
+    return found
+
+
+def _time_matches_row(row_t: time, target: time, ambiguous: bool, hour_only: bool) -> bool:
+    if hour_only:
+        if ambiguous and 1 <= target.hour <= 12:
+            return row_t.hour % 12 == target.hour % 12
+        return row_t.hour == target.hour
+
+    if ambiguous and 1 <= target.hour <= 12:
+        return row_t.hour % 12 == target.hour % 12 and row_t.minute == target.minute
+    return row_t.hour == target.hour and row_t.minute == target.minute
+
+
+def _fuzzy_contains(haystack: str, needle: str) -> bool:
+    h = haystack.lower().strip()
+    n = needle.lower().strip()
+    if not n:
+        return False
+    if n in h:
+        return True
+    # Soft: all needle tokens appear somewhere
+    parts = [p for p in re.split(r"[\s_-]+", n) if p]
+    return bool(parts) and all(p in h for p in parts)
 
 
 def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], str]:
@@ -350,52 +447,47 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
     if not rows:
         return [], "No appointments saved yet."
 
+    # Broad "show everything" style questions
+    if re.search(
+        r"\b(all|everything|everyone|entire|full\s+list|show\s+me\s+all|list\s+all)\b",
+        q,
+    ) and not re.search(r"\b(\d{1,2}|today|tomorrow|named|about)\b", q):
+        return rows, f"Showing all {len(rows)} appointment(s)."
+
     filtered = list(rows)
     notes: list[str] = []
 
-    time_matches = re.findall(
-        r"(?:at\s+)?(\d{1,2}:\d{2}\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm))",
-        q,
-        flags=re.IGNORECASE,
-    )
-    target_times: list[time] = []
-    for token in time_matches:
-        t = _normalize_time_token(token)
-        if t:
-            target_times.append(t)
-
-    if target_times:
-        ambiguous = []
-        for token in time_matches:
-            cleaned = re.sub(r"\s+", "", token.lower())
-            ambiguous.append(not cleaned.endswith(("am", "pm")))
-
+    time_queries = _extract_time_queries(q)
+    if time_queries:
         def matches_time(val: str) -> bool:
             row_t = _row_time(val)
             if row_t is None:
                 return False
-            for t, is_ambiguous in zip(target_times, ambiguous):
-                if row_t.minute != t.minute:
-                    continue
-                if is_ambiguous and 1 <= t.hour <= 12:
-                    if row_t.hour % 12 == t.hour % 12:
-                        return True
-                elif row_t.hour == t.hour:
-                    return True
-            return False
+            return any(
+                _time_matches_row(row_t, t, ambiguous, hour_only)
+                for t, ambiguous, hour_only in time_queries
+            )
 
         filtered = [r for r in filtered if matches_time(r.get("Time", ""))]
-        pretty = ", ".join(
-            (t.strftime("%I:%M").lstrip("0") + (" (am/pm)" if amb else " " + t.strftime("%p")))
-            for t, amb in zip(target_times, ambiguous)
-        )
-        notes.append(f"time = {pretty}")
+        pretty_bits = []
+        for t, ambiguous, hour_only in time_queries:
+            label = t.strftime("%I").lstrip("0")
+            if not hour_only:
+                label += t.strftime(":%M")
+            if ambiguous:
+                label += " (am/pm)"
+            else:
+                label += " " + t.strftime("%p")
+            if hour_only:
+                label += " any minute"
+            pretty_bits.append(label)
+        notes.append("time ~ " + ", ".join(pretty_bits))
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    if "today" in q:
+    if re.search(r"\btoday\b", q):
         filtered = [r for r in filtered if _row_date(r.get("Date", "")) == today]
         notes.append("date = today")
-    elif "tomorrow" in q:
+    elif re.search(r"\btomorrow\b", q):
         tomorrow = today + timedelta(days=1)
         filtered = [r for r in filtered if _row_date(r.get("Date", "")) == tomorrow]
         notes.append("date = tomorrow")
@@ -406,44 +498,72 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
             filtered = [r for r in filtered if _row_date(r.get("Date", "")) == target]
             notes.append(f"date = {date_match.group(1)}")
 
-    name_match = re.search(r"(?:for|named|name(?:\s+is)?)\s+([a-zA-Z][a-zA-Z\s'-]{0,40})", q)
+    # Names: "named X", "for X", "with X", or any capitalized-looking token handled via words below
+    name_match = re.search(
+        r"(?:for|named|name(?:\s+is)?|with|by)\s+([a-zA-Z][a-zA-Z\s'-]{0,40})",
+        q,
+    )
     if name_match:
         name = name_match.group(1).strip()
-        name = re.split(r"\b(?:at|on|about|with|tomorrow|today)\b", name)[0].strip()
-        if name:
-            filtered = [r for r in filtered if name.lower() in r.get("Name", "").lower()]
-            notes.append(f"name contains '{name}'")
+        name = re.split(
+            r"\b(?:at|on|about|with|tomorrow|today|around|appointment|appointments)\b",
+            name,
+        )[0].strip()
+        if name and name not in STOP_WORDS:
+            filtered = [r for r in filtered if _fuzzy_contains(r.get("Name", ""), name)]
+            notes.append(f"name ~ '{name}'")
 
-    about_match = re.search(r"\babout\s+([a-zA-Z0-9][\w\s'-]{0,40})", q)
+    about_match = re.search(r"\b(?:about|regarding|reason|for)\s+([a-zA-Z0-9][\w\s'-]{0,40})", q)
     if about_match:
         keyword = about_match.group(1).strip()
-        keyword = re.split(r"\b(?:at|on|named|for)\b", keyword)[0].strip()
-        if keyword and keyword not in {"appointment", "appointments"}:
-            filtered = [r for r in filtered if keyword.lower() in r.get("Reason", "").lower()]
-            notes.append(f"reason contains '{keyword}'")
+        keyword = re.split(r"\b(?:at|on|named|with|tomorrow|today)\b", keyword)[0].strip()
+        if keyword and keyword not in STOP_WORDS and keyword not in {"appointment", "appointments"}:
+            # Only apply reason filter if it actually hits something OR user said about/reason explicitly
+            reason_hits = [r for r in filtered if _fuzzy_contains(r.get("Reason", ""), keyword)]
+            name_hits = [r for r in filtered if _fuzzy_contains(r.get("Name", ""), keyword)]
+            if reason_hits:
+                filtered = reason_hits
+                notes.append(f"reason ~ '{keyword}'")
+            elif name_hits and "about" not in q and "reason" not in q:
+                filtered = name_hits
+                notes.append(f"name ~ '{keyword}'")
+            elif "about" in q or "reason" in q or "regarding" in q:
+                filtered = reason_hits
+                notes.append(f"reason ~ '{keyword}'")
 
+    # If nothing specific matched yet, soft-search leftover words across all columns
     if not notes:
-        stop = {
-            "tell", "show", "list", "what", "when", "have", "appointment",
-            "appointments", "please", "find", "give", "with", "from", "that",
-            "this", "my", "the", "and", "are", "who", "booked", "schedule",
-        }
-        words = [w for w in re.findall(r"[a-zA-Z]{3,}", q) if w not in stop]
+        words = [w for w in re.findall(r"[a-zA-Z0-9]{2,}", q) if w not in STOP_WORDS]
+        # Drop pure numbers already handled as times unless no time filter ran
+        words = [w for w in words if not w.isdigit()]
         if words:
-            filtered = [
-                r
-                for r in filtered
-                if any(
-                    w.lower() in r.get("Name", "").lower() or w.lower() in r.get("Reason", "").lower()
-                    for w in words
+            def row_hits(r: dict[str, str]) -> bool:
+                blob = " ".join(r.get(c, "") for c in ("Name", "Date", "Time", "Reason")).lower()
+                return any(w in blob for w in words)
+
+            hits = [r for r in filtered if row_hits(r)]
+            if hits:
+                filtered = hits
+                notes.append(f"text ~ {', '.join(words)}")
+            else:
+                # Lenient fallback: show all instead of empty when the chatbot is unsure
+                return (
+                    rows,
+                    f"Couldn't tightly match \"{question.strip()}\", so showing all {len(rows)} appointment(s). "
+                    f"Try \"at 6\", \"today\", or a name.",
                 )
-            ]
-            notes.append(f"text match: {', '.join(words)}")
 
     if notes:
-        summary = "Filtered by " + "; ".join(notes) + f". Found {len(filtered)} row(s)."
+        summary = "Matched " + "; ".join(notes) + f". Found {len(filtered)} row(s)."
     else:
-        summary = f"Showing all {len(filtered)} appointment(s). Try asking e.g. “appointments at 6:00”."
+        summary = f"Showing all {len(filtered)} appointment(s)."
+
+    # Extra leniency: if filters wiped everything, fall back to all with a hint
+    if notes and not filtered:
+        return (
+            rows,
+            f"No exact matches for \"{question.strip()}\". Showing all {len(rows)} appointment(s) instead.",
+        )
 
     return filtered, summary
 
