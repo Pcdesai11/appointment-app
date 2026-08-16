@@ -2,7 +2,9 @@
 __pycache__/
 *.pyc
 .env
+.env.local
 data/*.xlsx
+data/*.json
 .vercel
 *.egg-info/
 .DS_Store
