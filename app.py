@@ -68,6 +68,13 @@ class _VercelPathMiddleware:
 
 app.wsgi_app = _VercelPathMiddleware(app.wsgi_app)
 
+try:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+except Exception:
+    pass
+
 
 def using_blob() -> bool:
     return bool(os.getenv("BLOB_READ_WRITE_TOKEN", "").strip())
@@ -568,91 +575,171 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
     return filtered, summary
 
 
-def ask_openai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], str] | None:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key or not rows:
+def ask_free_ai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], str] | None:
+    """
+    Free AI first (Groq / Llama), optional OpenAI, else None -> built-in filter.
+    Get a free Groq key at https://console.groq.com
+    """
+    if not rows:
         return None
 
-    try:
-        from openai import OpenAI
+    prompt = (
+        "You help a doctor review appointment bookings. "
+        "Return ONLY a JSON object with keys: "
+        '"indices" (array of 0-based row indexes that match the question) and '
+        '"summary" (short plain-English answer for the doctor). '
+        "Be helpful and inclusive — if the question is vague, return likely matches. "
+        "If none match, indices should be [].\n\n"
+        f"Question: {question}\n\nRows:\n{rows}"
+    )
 
-        client = OpenAI(api_key=api_key)
-        prompt = (
-            "You answer questions about appointment rows. "
-            "Return ONLY a JSON object with keys: "
-            '"indices" (array of 0-based row indexes that match) and '
-            '"summary" (short plain-English answer). '
-            "If none match, indices should be [].\n\n"
-            f"Question: {question}\n\nRows:\n{rows}"
+    providers: list[tuple[str, str, str]] = []
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
+    if groq_key:
+        providers.append(
+            (groq_key, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile")
         )
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            response_format={"type": "json_object"},
-        )
-        payload = json.loads(response.choices[0].message.content or "{}")
-        indices = payload.get("indices") or []
-        summary = payload.get("summary") or "Here are the matching appointments."
-        valid = [i for i in indices if isinstance(i, int) and 0 <= i < len(rows)]
-        return [rows[i] for i in valid], str(summary)
-    except Exception:
-        return None
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if openai_key:
+        providers.append((openai_key, "https://api.openai.com/v1", "gpt-4o-mini"))
+
+    for api_key, base_url, model in providers:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                response_format={"type": "json_object"},
+            )
+            payload = json.loads(response.choices[0].message.content or "{}")
+            indices = payload.get("indices") or []
+            summary = payload.get("summary") or "Here are the matching appointments."
+            valid = [i for i in indices if isinstance(i, int) and 0 <= i < len(rows)]
+            source = "Groq (free)" if "groq.com" in base_url else "OpenAI"
+            return [rows[i] for i in valid], f"{summary} [{source}]"
+        except Exception:
+            continue
+    return None
+
+
+def doctor_password() -> str:
+    return os.getenv("DOCTOR_PASSWORD", "doctor123").strip() or "doctor123"
+
+
+def doctor_logged_in() -> bool:
+    from flask import session
+
+    return bool(session.get("doctor_ok"))
+
+
+def require_doctor(view):
+    from functools import wraps
+
+    from flask import session
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("doctor_ok"):
+            return redirect(url_for("doctor_login"))
+        return view(*args, **kwargs)
+
+    return wrapped
 
 
 @app.route("/", methods=["GET", "POST"])
+@app.route("/book", methods=["GET", "POST"])
 @app.route("/api/index", methods=["GET", "POST"])
-def index():
+def patient_form():
+    """Public patient link — form only."""
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        date_str = request.form.get("date", "").strip()
+        time_str = request.form.get("time", "").strip()
+        reason = request.form.get("reason", "").strip()
+
+        if not all([name, date_str, time_str, reason]):
+            flash("Please fill in all fields.", "error")
+        else:
+            try:
+                append_appointment(name, date_str, time_str, reason)
+                flash("Thanks — your appointment request was submitted.", "success")
+            except Exception as exc:
+                flash(f"Could not submit right now. Please try again. ({exc})", "error")
+        return redirect(url_for("patient_form"))
+
+    return render_template("patient.html")
+
+
+@app.route("/doctor/login", methods=["GET", "POST"])
+def doctor_login():
+    from flask import session
+
+    if session.get("doctor_ok"):
+        return redirect(url_for("doctor_dashboard"))
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if password == doctor_password():
+            session["doctor_ok"] = True
+            flash("Welcome back, doctor.", "success")
+            return redirect(url_for("doctor_dashboard"))
+        flash("Incorrect password.", "error")
+
+    return render_template("doctor_login.html")
+
+
+@app.route("/doctor/logout", methods=["POST", "GET"])
+def doctor_logout():
+    from flask import session
+
+    session.clear()
+    flash("Signed out.", "success")
+    return redirect(url_for("doctor_login"))
+
+
+@app.route("/doctor", methods=["GET", "POST"])
+@require_doctor
+def doctor_dashboard():
     ask_result = None
     ask_summary = None
     question = ""
+    ai_status = (
+        "Groq free AI connected"
+        if os.getenv("GROQ_API_KEY", "").strip()
+        else "Built-in filter active — add GROQ_API_KEY for free Llama AI"
+    )
 
-    if request.method == "POST":
-        action = request.form.get("action")
-
-        if action == "add":
-            name = request.form.get("name", "").strip()
-            date_str = request.form.get("date", "").strip()
-            time_str = request.form.get("time", "").strip()
-            reason = request.form.get("reason", "").strip()
-
-            if not all([name, date_str, time_str, reason]):
-                flash("Please fill in all fields.", "error")
+    if request.method == "POST" and request.form.get("action") == "ask":
+        question = request.form.get("question", "").strip()
+        rows = read_appointments()
+        if not question:
+            flash("Type a question first.", "error")
+        else:
+            ai = ask_free_ai(question, rows)
+            if ai is not None:
+                ask_result, ask_summary = ai
             else:
-                try:
-                    append_appointment(name, date_str, time_str, reason)
-                    flash("Appointment saved to Excel.", "success")
-                except Exception as exc:
-                    flash(f"Could not save appointment: {exc}", "error")
-            return redirect(url_for("index"))
-
-        if action == "ask":
-            question = request.form.get("question", "").strip()
-            rows = read_appointments()
-            if not question:
-                flash("Type a question first.", "error")
-            else:
-                ai = ask_openai(question, rows)
-                if ai is not None:
-                    ask_result, ask_summary = ai
-                else:
-                    ask_result, ask_summary = filter_with_rules(question, rows)
+                ask_result, ask_summary = filter_with_rules(question, rows)
 
     appointments = read_appointments()
     return render_template(
-        "index.html",
+        "doctor.html",
         appointments=appointments,
         ask_result=ask_result,
         ask_summary=ask_summary,
         question=question,
         excel_path=storage_label(),
-        using_cloud=using_blob(),
+        ai_status=ai_status,
+        patient_link=url_for("patient_form", _external=True),
     )
 
 
 @app.route("/download.xlsx")
+@require_doctor
 def download_excel():
-    # Same shared workbook every time — not a newly invented file name.
     data = read_excel_bytes()
     return send_file(
         io.BytesIO(data),
@@ -667,5 +754,6 @@ app.debug = False
 
 if __name__ == "__main__":
     print(f"Storage: {storage_label()}")
-    print("Open http://127.0.0.1:5000")
+    print("Patient form: http://127.0.0.1:5000/")
+    print("Doctor desk:  http://127.0.0.1:5000/doctor")
     app.run(debug=True, host="127.0.0.1", port=5000)

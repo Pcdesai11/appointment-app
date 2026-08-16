@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#e8f1f4" />
+  <title>Book an appointment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="page page-patient">
+    <header class="header">
+      <p class="brand">Book an appointment</p>
+      <p class="tagline">Fill in your details below. Your doctor will receive this booking automatically.</p>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash flash-{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel panel-patient">
+      <h2>Patient details</h2>
+      <p class="hint">All fields are required.</p>
+      <form method="post" class="form">
+        <label>
+          Full name
+          <input type="text" name="name" required placeholder="Your name" autocomplete="name" enterkeyhint="next" />
+        </label>
+        <div class="row">
+          <label>
+            Preferred date
+            <input type="date" name="date" required />
+          </label>
+          <label>
+            Preferred time
+            <input type="time" name="time" required />
+          </label>
+        </div>
+        <label>
+          Reason for visit
+          <textarea name="reason" rows="3" required placeholder="e.g. checkup, follow-up, tooth pain" enterkeyhint="done"></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Submit appointment</button>
+      </form>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,23 +1,39 @@
-# Appointments (Form + Ask AI + Excel)
+# Appointments — patient form + doctor desk
 
-One shared **`appointments.xlsx`** file:
-- Each form submit **appends a row** to that same workbook
-- Download always returns that same file (updated contents)
+## Two links
 
-## Live
+| Who | URL | What they see |
+|---|---|---|
+| **Patients** | `/` | Booking form only |
+| **You (doctor)** | `/doctor` | Ask AI, Excel download, all appointments |
 
-- App: https://appointment-app-ivory.vercel.app
-- Repo: https://github.com/Pcdesai11/appointment-app
+Live example:
+- Patient: https://appointment-app-ivory.vercel.app/
+- Doctor: https://appointment-app-ivory.vercel.app/doctor
+
+Default doctor password: `doctor123`  
+Change it with env var `DOCTOR_PASSWORD`.
+
+## Free AI (Groq / Llama)
+
+1. Create a free key at https://console.groq.com/keys  
+2. Set `GROQ_API_KEY` in Vercel → Project → Settings → Environment Variables  
+3. Redeploy  
+
+Without a key, Ask AI still works with the built-in lenient filter.
 
 ## Local run
 
 ```powershell
 cd appointment-app
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python app.py
 ```
 
-Local file: `data/appointments.xlsx`  
-Hosted: the same filename in Vercel Blob (`appointments.xlsx`), overwritten in place on every save.
+## Env vars
+
+- `DOCTOR_PASSWORD` — doctor desk login  
+- `GROQ_API_KEY` — free Llama AI  
+- `BLOB_READ_WRITE_TOKEN` — set automatically by Vercel Blob  
+- `FLASK_SECRET_KEY` — session cookie secret  
