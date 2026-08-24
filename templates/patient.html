@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="gu">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#e8f1f4" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <title>ખતના અપોઇન્ટમેન્ટ | Khatna Appointment</title>
+  <title>Khatna Appointment | ખતના અપોઇન્ટમેન્ટ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
@@ -14,8 +14,8 @@
 <body>
   <div class="page page-patient">
     <header class="header">
-      <p class="brand">ખતના અપોઇન્ટમેન્ટ</p>
-      <p class="tagline">Khatna booking · નીચેની માહિતી ભરો. ડૉક્ટરને આપમેળે મળશે.</p>
+      <p class="brand">Khatna Appointment</p>
+      <p class="tagline">Fill in the details below. Your doctor will receive this booking automatically. · નીચેની માહિતી ભરો.</p>
     </header>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -29,29 +29,29 @@
     {% endwith %}
 
     <section class="panel panel-patient">
-      <h2>બુકિંગ ફોર્મ</h2>
-      <p class="hint">* જરૂરી · Required · સમય માત્ર ૧૨ / ૩ / ૬</p>
+      <h2>Booking form · બુકિંગ ફોર્મ</h2>
+      <p class="hint">* Required · જરૂરી · Time only 12 / 3 / 6 PM</p>
       <form method="post" class="form form-patient">
         <label>
           <span class="label-stack">
-            <span class="label-gu">બાળકનું પૂરું નામ *</span>
-            <span class="label-en">Full name of baby</span>
+            <span class="label-en">Full name of baby *</span>
+            <span class="label-gu">બાળકનું પૂરું નામ</span>
           </span>
-          <input type="text" name="baby_name" required placeholder="બાળકનું નામ" autocomplete="name" enterkeyhint="next" />
+          <input type="text" name="baby_name" required placeholder="Baby's full name" autocomplete="name" enterkeyhint="next" />
         </label>
 
         <div class="row">
           <label>
             <span class="label-stack">
-              <span class="label-gu">ઉંમર *</span>
-              <span class="label-en">Age (years/months)</span>
+              <span class="label-en">Age (years/months) *</span>
+              <span class="label-gu">ઉંમર (વર્ષ/મહિના)</span>
             </span>
             <input type="text" name="age" required placeholder="1 year 2 months" enterkeyhint="next" />
           </label>
           <label>
             <span class="label-stack">
-              <span class="label-gu">વજન *</span>
-              <span class="label-en">Weight of baby</span>
+              <span class="label-en">Weight of baby *</span>
+              <span class="label-gu">બાળકનું વજન</span>
             </span>
             <input type="text" name="weight" required placeholder="8 kg" enterkeyhint="next" />
           </label>
@@ -59,8 +59,8 @@
 
         <label>
           <span class="label-stack">
-            <span class="label-gu">ખતનાની તારીખ *</span>
-            <span class="label-en">Date for khatna</span>
+            <span class="label-en">Date for khatna *</span>
+            <span class="label-gu">ખતનાની તારીખ</span>
           </span>
           <input type="date" name="date" required />
         </label>
@@ -68,8 +68,8 @@
         <fieldset class="time-slots">
           <legend>
             <span class="label-stack">
-              <span class="label-gu">ખતનાનો સમય *</span>
-              <span class="label-en">Time — choose one</span>
+              <span class="label-en">Time for khatna *</span>
+              <span class="label-gu">ખતનાનો સમય</span>
             </span>
           </legend>
           <div class="time-options">
@@ -84,30 +84,30 @@
 
         <label>
           <span class="label-stack">
-            <span class="label-gu">રહેઠાણનો વિસ્તાર *</span>
-            <span class="label-en">Area of residence</span>
+            <span class="label-en">Area of residence *</span>
+            <span class="label-gu">રહેઠાણનો વિસ્તાર</span>
           </span>
-          <input type="text" name="area" required placeholder="નગર / વિસ્તાર" enterkeyhint="next" />
+          <input type="text" name="area" required placeholder="City / area" enterkeyhint="next" />
         </label>
 
         <label>
           <span class="label-stack">
-            <span class="label-gu">મોબાઇલ નંબર *</span>
-            <span class="label-en">Mobile number</span>
+            <span class="label-en">Mobile number *</span>
+            <span class="label-gu">મોબાઇલ નંબર</span>
           </span>
           <input type="tel" name="mobile" required placeholder="98XXXXXXXX" autocomplete="tel" inputmode="numeric" enterkeyhint="next" />
         </label>
 
         <label>
           <span class="label-stack">
+            <span class="label-en">Email (optional)</span>
             <span class="label-gu">ઈમેઈલ (વૈકલ્પિક)</span>
-            <span class="label-en">Email optional</span>
           </span>
           <input type="email" name="email" placeholder="name@email.com" autocomplete="email" enterkeyhint="done" />
         </label>
 
         <div class="submit-bar">
-          <button type="submit" class="btn btn-primary">સબમિટ / Submit</button>
+          <button type="submit" class="btn btn-primary">Submit · સબમિટ</button>
         </div>
       </form>
     </section>

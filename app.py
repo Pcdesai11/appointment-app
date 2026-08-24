@@ -38,9 +38,9 @@ COLUMNS = [
 ]
 ALLOWED_TIMES = ["12:00", "15:00", "18:00"]
 TIME_LABELS = {
-    "12:00": "12:00 PM / બપોરે ૧૨",
-    "15:00": "3:00 PM / બપોરે ૩",
-    "18:00": "6:00 PM / સાંજે ૬",
+    "12:00": "12:00 PM · બપોરે ૧૨",
+    "15:00": "3:00 PM · બપોરે ૩",
+    "18:00": "6:00 PM · સાંજે ૬",
 }
 XLSX_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

@@ -377,13 +377,13 @@ tr:last-child td {
   gap: 0.1rem;
 }
 
-.label-gu {
+.label-en {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--ink);
 }
 
-.label-en {
+.label-gu {
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--muted);
@@ -638,7 +638,7 @@ tr:last-child td {
 }
 
 @media (max-width: 380px) {
-  .label-gu {
+  .label-en {
     font-size: 0.9rem;
   }
 
