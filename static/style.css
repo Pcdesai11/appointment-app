@@ -364,10 +364,29 @@ tr:last-child td {
 
 .page-patient {
   width: min(560px, calc(100% - 1.25rem));
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
 }
 
 .page-patient .btn {
   width: 100%;
+}
+
+.label-stack {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.label-gu {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.label-en {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 .time-slots {
@@ -377,9 +396,8 @@ tr:last-child td {
 }
 
 .time-slots legend {
-  font-size: 0.86rem;
-  font-weight: 600;
-  margin-bottom: 0.45rem;
+  padding: 0;
+  margin-bottom: 0.55rem;
 }
 
 .time-options {
@@ -390,24 +408,48 @@ tr:last-child td {
 .time-option {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.75rem 0.85rem;
+  gap: 0.75rem;
+  min-height: var(--tap);
+  padding: 0.85rem 0.95rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: #fff;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.95rem;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .time-option input {
-  width: auto;
+  width: 1.15rem;
+  height: 1.15rem;
   min-height: auto;
+  margin: 0;
+  flex-shrink: 0;
   accent-color: var(--accent);
 }
 
 .time-option:has(input:checked) {
   border-color: var(--accent);
+  background: rgba(15, 110, 106, 0.06);
   box-shadow: 0 0 0 2px rgba(15, 110, 106, 0.15);
+}
+
+.submit-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 0.35rem -0.15rem 0;
+  padding: 0.65rem 0.15rem calc(0.35rem + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 35%);
+}
+
+.form-patient {
+  gap: 1rem;
+}
+
+.form-patient input[type="date"] {
+  min-height: 52px;
 }
 
 .doctor-meta {
@@ -469,8 +511,32 @@ tr:last-child td {
 
 /* Phone: card-style rows instead of wide tables */
 @media (max-width: 640px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .page,
+  .page-patient {
+    width: calc(100% - 1rem);
+    max-width: 100%;
+    padding: 1rem 0 calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
+  .brand {
+    font-size: clamp(1.7rem, 9vw, 2.3rem);
+  }
+
   .tagline {
-    font-size: 0.98rem;
+    font-size: 0.92rem;
+  }
+
+  .panel {
+    padding: 1rem 0.85rem 1.05rem;
+    border-radius: 16px;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
   }
 
   .excel-path {
@@ -480,6 +546,27 @@ tr:last-child td {
 
   .excel-path a {
     text-align: center;
+    min-height: var(--tap);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .doctor-meta {
+    font-size: 0.86rem;
+  }
+
+  .time-options {
+    grid-template-columns: 1fr;
+  }
+
+  .time-option {
+    min-height: 54px;
+    font-size: 1rem;
+  }
+
+  .chat-thread {
+    max-height: 45vh;
   }
 
   .table-wrap {
@@ -517,11 +604,12 @@ tr:last-child td {
 
   td {
     display: grid;
-    grid-template-columns: 6.5rem 1fr;
-    gap: 0.5rem;
-    padding: 0.55rem 0.85rem;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 0.45rem;
+    padding: 0.55rem 0.8rem;
     border-bottom: 1px solid #eef3f5;
     font-size: 0.95rem;
+    overflow-wrap: anywhere;
   }
 
   td:last-child {
@@ -530,7 +618,7 @@ tr:last-child td {
 
   td::before {
     content: attr(data-label);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -543,7 +631,18 @@ tr:last-child td {
   }
 
   .ask-actions .btn,
-  .clear-chat-form .btn {
+  .clear-chat-form .btn,
+  .submit-bar .btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .label-gu {
+    font-size: 0.9rem;
+  }
+
+  td {
+    grid-template-columns: 4.8rem minmax(0, 1fr);
   }
 }

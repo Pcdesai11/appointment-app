@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#e8f1f4" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>ખતના અપોઇન્ટમેન્ટ | Khatna Appointment</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,7 +15,7 @@
   <div class="page page-patient">
     <header class="header">
       <p class="brand">ખતના અપોઇન્ટમેન્ટ</p>
-      <p class="tagline">Khatna appointment booking · નીચેની માહિતી ભરો. ડૉક્ટરને આપમેળે મળશે.</p>
+      <p class="tagline">Khatna booking · નીચેની માહિતી ભરો. ડૉક્ટરને આપમેળે મળશે.</p>
     </header>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -28,32 +29,49 @@
     {% endwith %}
 
     <section class="panel panel-patient">
-      <h2>બુકિંગ ફોર્મ / Booking form</h2>
-      <p class="hint">* જરૂરી ખાના · Required fields. સમય માત્ર ૧૨ / ૩ / ૬ વાગ્યે.</p>
-      <form method="post" class="form">
+      <h2>બુકિંગ ફોર્મ</h2>
+      <p class="hint">* જરૂરી · Required · સમય માત્ર ૧૨ / ૩ / ૬</p>
+      <form method="post" class="form form-patient">
         <label>
-          બાળકનું પૂરું નામ / Full name of baby *
+          <span class="label-stack">
+            <span class="label-gu">બાળકનું પૂરું નામ *</span>
+            <span class="label-en">Full name of baby</span>
+          </span>
           <input type="text" name="baby_name" required placeholder="બાળકનું નામ" autocomplete="name" enterkeyhint="next" />
         </label>
 
         <div class="row">
           <label>
-            ઉંમર (વર્ષ/મહિના) / Age *
-            <input type="text" name="age" required placeholder="e.g. 1 year 2 months" enterkeyhint="next" />
+            <span class="label-stack">
+              <span class="label-gu">ઉંમર *</span>
+              <span class="label-en">Age (years/months)</span>
+            </span>
+            <input type="text" name="age" required placeholder="1 year 2 months" enterkeyhint="next" />
           </label>
           <label>
-            બાળકનું વજન / Weight *
-            <input type="text" name="weight" required placeholder="e.g. 8 kg" enterkeyhint="next" />
+            <span class="label-stack">
+              <span class="label-gu">વજન *</span>
+              <span class="label-en">Weight of baby</span>
+            </span>
+            <input type="text" name="weight" required placeholder="8 kg" enterkeyhint="next" />
           </label>
         </div>
 
         <label>
-          ખતનાની તારીખ / Date for khatna *
+          <span class="label-stack">
+            <span class="label-gu">ખતનાની તારીખ *</span>
+            <span class="label-en">Date for khatna</span>
+          </span>
           <input type="date" name="date" required />
         </label>
 
         <fieldset class="time-slots">
-          <legend>ખતનાનો સમય / Time for khatna *</legend>
+          <legend>
+            <span class="label-stack">
+              <span class="label-gu">ખતનાનો સમય *</span>
+              <span class="label-en">Time — choose one</span>
+            </span>
+          </legend>
           <div class="time-options">
             {% for t in allowed_times %}
               <label class="time-option">
@@ -65,21 +83,32 @@
         </fieldset>
 
         <label>
-          રહેઠાણનો વિસ્તાર / Area of residence *
+          <span class="label-stack">
+            <span class="label-gu">રહેઠાણનો વિસ્તાર *</span>
+            <span class="label-en">Area of residence</span>
+          </span>
           <input type="text" name="area" required placeholder="નગર / વિસ્તાર" enterkeyhint="next" />
         </label>
 
         <label>
-          મોબાઇલ નંબર / Mobile number *
-          <input type="tel" name="mobile" required placeholder="98XXXXXXXX" autocomplete="tel" inputmode="tel" enterkeyhint="next" />
+          <span class="label-stack">
+            <span class="label-gu">મોબાઇલ નંબર *</span>
+            <span class="label-en">Mobile number</span>
+          </span>
+          <input type="tel" name="mobile" required placeholder="98XXXXXXXX" autocomplete="tel" inputmode="numeric" enterkeyhint="next" />
         </label>
 
         <label>
-          ઈમેઈલ (વૈકલ્પિક) / Email (optional)
+          <span class="label-stack">
+            <span class="label-gu">ઈમેઈલ (વૈકલ્પિક)</span>
+            <span class="label-en">Email optional</span>
+          </span>
           <input type="email" name="email" placeholder="name@email.com" autocomplete="email" enterkeyhint="done" />
         </label>
 
-        <button type="submit" class="btn btn-primary">સબમિટ / Submit appointment</button>
+        <div class="submit-bar">
+          <button type="submit" class="btn btn-primary">સબમિટ / Submit</button>
+        </div>
       </form>
     </section>
   </div>
