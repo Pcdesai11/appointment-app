@@ -378,15 +378,18 @@ tr:last-child td {
 }
 
 .label-en {
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 1.08rem;
+  font-weight: 800;
   color: var(--ink);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .label-gu {
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--muted);
+  line-height: 1.3;
 }
 
 .time-slots {
@@ -444,8 +447,18 @@ tr:last-child td {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 35%);
 }
 
-.form-patient {
-  gap: 1rem;
+.page-patient .brand {
+  font-weight: 800;
+}
+
+.page-patient h2 {
+  font-size: clamp(1.4rem, 5vw, 1.7rem);
+  font-weight: 700;
+}
+
+.time-option {
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .form-patient input[type="date"] {
@@ -639,7 +652,7 @@ tr:last-child td {
 
 @media (max-width: 380px) {
   .label-en {
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
 
   td {
