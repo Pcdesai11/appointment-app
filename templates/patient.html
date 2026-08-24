@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="gu">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#e8f1f4" />
-  <title>Book an appointment</title>
+  <title>ખતના અપોઇન્ટમેન્ટ | Khatna Appointment</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
@@ -13,8 +13,8 @@
 <body>
   <div class="page page-patient">
     <header class="header">
-      <p class="brand">Book an appointment</p>
-      <p class="tagline">Fill in your details below. Your doctor will receive this booking automatically.</p>
+      <p class="brand">ખતના અપોઇન્ટમેન્ટ</p>
+      <p class="tagline">Khatna appointment booking · નીચેની માહિતી ભરો. ડૉક્ટરને આપમેળે મળશે.</p>
     </header>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -28,28 +28,58 @@
     {% endwith %}
 
     <section class="panel panel-patient">
-      <h2>Patient details</h2>
-      <p class="hint">All fields are required.</p>
+      <h2>બુકિંગ ફોર્મ / Booking form</h2>
+      <p class="hint">* જરૂરી ખાના · Required fields. સમય માત્ર ૧૨ / ૩ / ૬ વાગ્યે.</p>
       <form method="post" class="form">
         <label>
-          Full name
-          <input type="text" name="name" required placeholder="Your name" autocomplete="name" enterkeyhint="next" />
+          બાળકનું પૂરું નામ / Full name of baby *
+          <input type="text" name="baby_name" required placeholder="બાળકનું નામ" autocomplete="name" enterkeyhint="next" />
         </label>
+
         <div class="row">
           <label>
-            Preferred date
-            <input type="date" name="date" required />
+            ઉંમર (વર્ષ/મહિના) / Age *
+            <input type="text" name="age" required placeholder="e.g. 1 year 2 months" enterkeyhint="next" />
           </label>
           <label>
-            Preferred time
-            <input type="time" name="time" required />
+            બાળકનું વજન / Weight *
+            <input type="text" name="weight" required placeholder="e.g. 8 kg" enterkeyhint="next" />
           </label>
         </div>
+
         <label>
-          Reason for visit
-          <textarea name="reason" rows="3" required placeholder="e.g. checkup, follow-up, tooth pain" enterkeyhint="done"></textarea>
+          ખતનાની તારીખ / Date for khatna *
+          <input type="date" name="date" required />
         </label>
-        <button type="submit" class="btn btn-primary">Submit appointment</button>
+
+        <fieldset class="time-slots">
+          <legend>ખતનાનો સમય / Time for khatna *</legend>
+          <div class="time-options">
+            {% for t in allowed_times %}
+              <label class="time-option">
+                <input type="radio" name="time" value="{{ t }}" required {% if loop.first %}checked{% endif %} />
+                <span>{{ time_labels[t] }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <label>
+          રહેઠાણનો વિસ્તાર / Area of residence *
+          <input type="text" name="area" required placeholder="નગર / વિસ્તાર" enterkeyhint="next" />
+        </label>
+
+        <label>
+          મોબાઇલ નંબર / Mobile number *
+          <input type="tel" name="mobile" required placeholder="98XXXXXXXX" autocomplete="tel" inputmode="tel" enterkeyhint="next" />
+        </label>
+
+        <label>
+          ઈમેઈલ (વૈકલ્પિક) / Email (optional)
+          <input type="email" name="email" placeholder="name@email.com" autocomplete="email" enterkeyhint="done" />
+        </label>
+
+        <button type="submit" class="btn btn-primary">સબમિટ / Submit appointment</button>
       </form>
     </section>
   </div>

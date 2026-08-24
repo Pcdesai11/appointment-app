@@ -25,7 +25,23 @@ DATA_DIR = APP_DIR / "data"
 EXCEL_PATH = DATA_DIR / "appointments.xlsx"
 BLOB_PATHNAME = "appointments.xlsx"
 JSON_LEGACY_PATHNAME = "appointments.json"
-COLUMNS = ["Timestamp", "Name", "Date", "Time", "Reason"]
+COLUMNS = [
+    "Timestamp",
+    "BabyName",
+    "Age",
+    "Weight",
+    "Date",
+    "Time",
+    "Area",
+    "Mobile",
+    "Email",
+]
+ALLOWED_TIMES = ["12:00", "15:00", "18:00"]
+TIME_LABELS = {
+    "12:00": "12:00 PM / બપોરે ૧૨",
+    "15:00": "3:00 PM / બપોરે ૩",
+    "18:00": "6:00 PM / સાંજે ૬",
+}
 XLSX_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
@@ -103,11 +119,18 @@ def _rows_from_workbook_bytes(data: bytes) -> list[dict[str, str]]:
     ws = wb.active
     rows: list[dict[str, str]] = []
     headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
-    # Normalize headers
-    header_map = {}
+    header_map: dict[int, str] = {}
     for idx, h in enumerate(headers):
         name = str(h or "").strip()
-        header_map[idx] = name if name in COLUMNS else (COLUMNS[idx] if idx < len(COLUMNS) else name)
+        # Map legacy columns from the older form
+        if name == "Name":
+            name = "BabyName"
+        elif name == "Reason":
+            name = "Area"
+        if name in COLUMNS:
+            header_map[idx] = name
+        elif idx < len(COLUMNS):
+            header_map[idx] = COLUMNS[idx]
 
     for excel_row in ws.iter_rows(min_row=2, values_only=True):
         if excel_row is None or all(v is None or str(v).strip() == "" for v in excel_row):
@@ -134,7 +157,7 @@ def _rows_from_workbook_bytes(data: bytes) -> list[dict[str, str]]:
                 if key == "Time" and re.fullmatch(r"\d{1,2}:\d{2}:\d{2}", text):
                     text = text[:5]
                 item[key] = text
-        if any(item[c] for c in ("Name", "Date", "Time", "Reason")):
+        if any(item[c] for c in ("BabyName", "Date", "Time", "Mobile")):
             rows.append(item)
     return rows
 
@@ -273,22 +296,29 @@ def read_appointments() -> list[dict[str, str]]:
     return _rows_from_workbook_bytes(read_excel_bytes())
 
 
-def append_appointment(name: str, date_str: str, time_str: str, reason: str) -> None:
+def slot_taken(date_str: str, time_str: str) -> bool:
+    for row in read_appointments():
+        if row.get("Date") == date_str and row.get("Time") == time_str:
+            return True
+    return False
+
+
+def append_appointment(booking: dict[str, str]) -> None:
     """Append one row into the same Excel workbook and save it back."""
     data = read_excel_bytes()
     wb = load_workbook(io.BytesIO(data))
     ws = wb.active
+
+    # If this is a legacy workbook, rewrite headers to the new schema once.
+    first = [ws.cell(1, i).value for i in range(1, len(COLUMNS) + 1)]
+    if first[0] != "Timestamp" or "BabyName" not in [str(v or "") for v in first]:
+        existing = _rows_from_workbook_bytes(data)
+        write_excel_bytes(_workbook_bytes_from_rows(existing + [booking]))
+        return
+
     if ws.max_row == 0 or ws.cell(1, 1).value is None:
         ws.append(COLUMNS)
-    ws.append(
-        [
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            name.strip(),
-            date_str,
-            time_str,
-            reason.strip(),
-        ]
-    )
+    ws.append([booking.get(c, "") for c in COLUMNS])
     buf = io.BytesIO()
     wb.save(buf)
     write_excel_bytes(buf.getvalue())
@@ -517,35 +547,36 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
             name,
         )[0].strip()
         if name and name not in STOP_WORDS:
-            filtered = [r for r in filtered if _fuzzy_contains(r.get("Name", ""), name)]
+            filtered = [r for r in filtered if _fuzzy_contains(r.get("BabyName", ""), name)]
             notes.append(f"name ~ '{name}'")
 
-    about_match = re.search(r"\b(?:about|regarding|reason|for)\s+([a-zA-Z0-9][\w\s'-]{0,40})", q)
+    about_match = re.search(r"\b(?:about|regarding|area|from|for)\s+([a-zA-Z0-9][\w\s'-]{0,40})", q)
     if about_match:
         keyword = about_match.group(1).strip()
         keyword = re.split(r"\b(?:at|on|named|with|tomorrow|today)\b", keyword)[0].strip()
-        if keyword and keyword not in STOP_WORDS and keyword not in {"appointment", "appointments"}:
-            # Only apply reason filter if it actually hits something OR user said about/reason explicitly
-            reason_hits = [r for r in filtered if _fuzzy_contains(r.get("Reason", ""), keyword)]
-            name_hits = [r for r in filtered if _fuzzy_contains(r.get("Name", ""), keyword)]
-            if reason_hits:
-                filtered = reason_hits
-                notes.append(f"reason ~ '{keyword}'")
-            elif name_hits and "about" not in q and "reason" not in q:
+        if keyword and keyword not in STOP_WORDS and keyword not in {"appointment", "appointments", "khatna"}:
+            area_hits = [r for r in filtered if _fuzzy_contains(r.get("Area", ""), keyword)]
+            name_hits = [r for r in filtered if _fuzzy_contains(r.get("BabyName", ""), keyword)]
+            if area_hits:
+                filtered = area_hits
+                notes.append(f"area ~ '{keyword}'")
+            elif name_hits:
                 filtered = name_hits
                 notes.append(f"name ~ '{keyword}'")
-            elif "about" in q or "reason" in q or "regarding" in q:
-                filtered = reason_hits
-                notes.append(f"reason ~ '{keyword}'")
+            elif "about" in q or "area" in q or "regarding" in q:
+                filtered = area_hits
+                notes.append(f"area ~ '{keyword}'")
 
     # If nothing specific matched yet, soft-search leftover words across all columns
     if not notes:
         words = [w for w in re.findall(r"[a-zA-Z0-9]{2,}", q) if w not in STOP_WORDS]
-        # Drop pure numbers already handled as times unless no time filter ran
         words = [w for w in words if not w.isdigit()]
         if words:
             def row_hits(r: dict[str, str]) -> bool:
-                blob = " ".join(r.get(c, "") for c in ("Name", "Date", "Time", "Reason")).lower()
+                blob = " ".join(
+                    r.get(c, "")
+                    for c in ("BabyName", "Age", "Weight", "Date", "Time", "Area", "Mobile", "Email")
+                ).lower()
                 return any(w in blob for w in words)
 
             hits = [r for r in filtered if row_hits(r)]
@@ -553,7 +584,6 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
                 filtered = hits
                 notes.append(f"text ~ {', '.join(words)}")
             else:
-                # Lenient fallback: show all instead of empty when the chatbot is unsure
                 return (
                     rows,
                     f"Couldn't tightly match \"{question.strip()}\", so showing all {len(rows)} appointment(s). "
@@ -584,7 +614,7 @@ def ask_free_ai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[st
         return None
 
     prompt = (
-        "You help a doctor review appointment bookings. "
+        "You help a doctor review khatna appointment bookings. "
         "Return ONLY a JSON object with keys: "
         '"indices" (array of 0-based row indexes that match the question) and '
         '"summary" (short plain-English answer for the doctor). '
@@ -652,24 +682,67 @@ def require_doctor(view):
 @app.route("/book", methods=["GET", "POST"])
 @app.route("/api/index", methods=["GET", "POST"])
 def patient_form():
-    """Public patient link — form only."""
+    """Public patient link — khatna booking form only."""
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
+        baby_name = request.form.get("baby_name", "").strip()
+        age = request.form.get("age", "").strip()
+        weight = request.form.get("weight", "").strip()
         date_str = request.form.get("date", "").strip()
         time_str = request.form.get("time", "").strip()
-        reason = request.form.get("reason", "").strip()
+        area = request.form.get("area", "").strip()
+        mobile = request.form.get("mobile", "").strip()
+        email = request.form.get("email", "").strip()
 
-        if not all([name, date_str, time_str, reason]):
-            flash("Please fill in all fields.", "error")
+        if not all([baby_name, age, weight, date_str, time_str, area, mobile]):
+            flash("Please fill in all required fields. / કૃપા કરીને બધા જરૂરી ખાના ભરો.", "error")
+        elif time_str not in ALLOWED_TIMES:
+            flash("Please choose 12 PM, 3 PM, or 6 PM only. / માત્ર ૧૨, ૩ અથવા ૬ વાગ્યાનો સમય પસંદ કરો.", "error")
+        elif not re.fullmatch(r"[0-9+\-\s]{8,15}", mobile):
+            flash("Enter a valid mobile number. / યોગ્ય મોબાઇલ નંબર લખો.", "error")
+        elif slot_taken(date_str, time_str):
+            flash(
+                "That date and time is already booked. Please choose another. / "
+                "આ તારીખ અને સમય પહેલેથી બુક થયેલ છે. બીજો સમય પસંદ કરો.",
+                "error",
+            )
         else:
+            booking = {
+                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "BabyName": baby_name,
+                "Age": age,
+                "Weight": weight,
+                "Date": date_str,
+                "Time": time_str,
+                "Area": area,
+                "Mobile": mobile,
+                "Email": email,
+            }
             try:
-                append_appointment(name, date_str, time_str, reason)
-                flash("Thanks — your appointment request was submitted.", "success")
+                append_appointment(booking)
+                cal_note = ""
+                try:
+                    from google_calendar import create_khatna_event
+
+                    link = create_khatna_event(booking)
+                    if link:
+                        cal_note = " Calendar updated."
+                except Exception:
+                    cal_note = " (Saved, but calendar sync failed — doctor can still see it.)"
+                flash(
+                    "Thanks — your khatna appointment request was submitted."
+                    + cal_note
+                    + " / આભાર — તમારી ખતના અપોઇન્ટમેન્ટ મોકલાઈ ગઈ.",
+                    "success",
+                )
             except Exception as exc:
                 flash(f"Could not submit right now. Please try again. ({exc})", "error")
         return redirect(url_for("patient_form"))
 
-    return render_template("patient.html")
+    return render_template(
+        "patient.html",
+        allowed_times=ALLOWED_TIMES,
+        time_labels=TIME_LABELS,
+    )
 
 
 @app.route("/doctor/login", methods=["GET", "POST"])
@@ -709,6 +782,16 @@ def doctor_dashboard():
         if os.getenv("GROQ_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
         else "Smart filter active"
     )
+    try:
+        from google_calendar import calendar_configured
+
+        calendar_status = (
+            "Google Calendar connected"
+            if calendar_configured()
+            else "Google Calendar not connected yet"
+        )
+    except Exception:
+        calendar_status = "Google Calendar not connected yet"
     chat_history = list(session.get("doctor_chat") or [])
 
     if request.method == "POST":
@@ -750,6 +833,7 @@ def doctor_dashboard():
         chat_history=chat_history,
         excel_path=storage_label(),
         ai_status=ai_status,
+        calendar_status=calendar_status,
         patient_link=url_for("patient_form", _external=True),
     )
 

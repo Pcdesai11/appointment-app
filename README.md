@@ -1,26 +1,38 @@
-# Appointments — patient form + doctor desk
+# Khatna appointments — patient form + doctor desk
 
-## Two links
+## Links
 
 | Who | URL | What they see |
 |---|---|---|
-| **Patients** | `/` | Booking form only |
-| **You (doctor)** | `/doctor` | Ask AI, Excel download, all appointments |
+| **Patients** | `/` | Gujarati/English khatna booking form |
+| **Doctor** | `/doctor` | Ask AI, Excel download, all bookings |
 
-Live example:
-- Patient: https://appointment-app-ivory.vercel.app/
-- Doctor: https://appointment-app-ivory.vercel.app/doctor
+Patient times are fixed: **12 PM, 3 PM, 6 PM** only.
 
-Default doctor password: `doctor123`  
-Change it with env var `DOCTOR_PASSWORD`.
+## Form fields
 
-## Free AI (Groq / Llama)
+- Baby full name / બાળકનું પૂરું નામ
+- Age / ઉંમર
+- Weight / વજન
+- Date / તારીખ
+- Time / સમય (12 / 3 / 6 PM)
+- Area / વિસ્તાર
+- Mobile / મોબાઇલ
+- Email optional / ઈમેઈલ
 
-1. Create a free key at https://console.groq.com/keys  
-2. Set `GROQ_API_KEY` in Vercel → Project → Settings → Environment Variables  
-3. Redeploy  
+## Google Calendar setup
 
-Without a key, Ask AI still works with the built-in lenient filter.
+1. In [Google Cloud Console](https://console.cloud.google.com/) create a project.
+2. Enable **Google Calendar API**.
+3. Create a **Service Account** → download JSON key.
+4. Open Google Calendar → Settings → share calendar with the service account email (**Make changes to events**).
+5. Copy Calendar ID (often your email, or from Calendar settings).
+6. In Vercel env vars set:
+   - `GOOGLE_SERVICE_ACCOUNT_JSON` = full JSON key (one line)
+   - `GOOGLE_CALENDAR_ID` = your calendar id
+   - `GOOGLE_CALENDAR_TIMEZONE` = `Asia/Kolkata`
+
+When a patient submits, the booking is saved to Excel **and** added to the calendar.
 
 ## Local run
 
@@ -30,10 +42,3 @@ cd appointment-app
 pip install -r requirements.txt
 python app.py
 ```
-
-## Env vars
-
-- `DOCTOR_PASSWORD` — doctor desk login  
-- `GROQ_API_KEY` — free Llama AI  
-- `BLOB_READ_WRITE_TOKEN` — set automatically by Vercel Blob  
-- `FLASK_SECRET_KEY` — session cookie secret  

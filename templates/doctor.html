@@ -14,7 +14,7 @@
   <div class="page">
     <header class="header">
       <p class="brand">Doctor desk</p>
-      <p class="tagline">Track patient bookings with AI. Patients only see the booking form.</p>
+      <p class="tagline">Khatna bookings, AI tracking, Excel export, and Google Calendar.</p>
       <p class="excel-path">
         <code>{{ excel_path }}</code>
         <a href="{{ url_for('download_excel') }}">Download appointments.xlsx</a>
@@ -22,7 +22,7 @@
       </p>
       <div class="doctor-meta">
         <p><strong>Patient link</strong> (share only this): <a href="{{ patient_link }}">{{ patient_link }}</a></p>
-        <p class="ai-status">{{ ai_status }}</p>
+        <p class="ai-status">{{ ai_status }} · {{ calendar_status }}</p>
       </div>
     </header>
 
@@ -52,19 +52,21 @@
                     <table>
                       <thead>
                         <tr>
-                          <th>Name</th>
+                          <th>Baby</th>
                           <th>Date</th>
                           <th>Time</th>
-                          <th>Reason</th>
+                          <th>Mobile</th>
+                          <th>Area</th>
                         </tr>
                       </thead>
                       <tbody>
                         {% for row in turn.results %}
                           <tr>
-                            <td data-label="Name">{{ row.Name }}</td>
+                            <td data-label="Baby">{{ row.BabyName }}</td>
                             <td data-label="Date">{{ row.Date }}</td>
                             <td data-label="Time">{{ row.Time }}</td>
-                            <td data-label="Reason">{{ row.Reason }}</td>
+                            <td data-label="Mobile">{{ row.Mobile }}</td>
+                            <td data-label="Area">{{ row.Area }}</td>
                           </tr>
                         {% endfor %}
                       </tbody>
@@ -86,7 +88,7 @@
               type="text"
               name="question"
               value=""
-              placeholder="What appointments do I have at 6?"
+              placeholder="Who is booked at 6pm tomorrow?"
               required
               autofocus
               enterkeyhint="send"
@@ -112,33 +114,41 @@
         <h2>Quick tips</h2>
         <ul class="tips">
           <li>Send patients only the booking link above.</li>
-          <li>New submissions appear in this list and in Excel.</li>
-          <li>Keep asking follow-ups — the chat stays until you cancel.</li>
+          <li>Patients can only pick 12 PM, 3 PM, or 6 PM.</li>
+          <li>New bookings save to Excel and sync to Google Calendar when connected.</li>
         </ul>
       </section>
     </main>
 
     <section class="panel panel-all">
-      <h2>All appointments</h2>
+      <h2>All khatna appointments</h2>
       {% if appointments %}
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
+                <th>Baby</th>
+                <th>Age</th>
+                <th>Weight</th>
                 <th>Date</th>
                 <th>Time</th>
-                <th>Reason</th>
-                <th>Saved at</th>
+                <th>Area</th>
+                <th>Mobile</th>
+                <th>Email</th>
+                <th>Saved</th>
               </tr>
             </thead>
             <tbody>
               {% for row in appointments %}
                 <tr>
-                  <td data-label="Name">{{ row.Name }}</td>
+                  <td data-label="Baby">{{ row.BabyName }}</td>
+                  <td data-label="Age">{{ row.Age }}</td>
+                  <td data-label="Weight">{{ row.Weight }}</td>
                   <td data-label="Date">{{ row.Date }}</td>
                   <td data-label="Time">{{ row.Time }}</td>
-                  <td data-label="Reason">{{ row.Reason }}</td>
+                  <td data-label="Area">{{ row.Area }}</td>
+                  <td data-label="Mobile">{{ row.Mobile }}</td>
+                  <td data-label="Email">{{ row.Email or '—' }}</td>
                   <td data-label="Saved">{{ row.Timestamp }}</td>
                 </tr>
               {% endfor %}

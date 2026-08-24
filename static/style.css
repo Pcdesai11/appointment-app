@@ -366,8 +366,48 @@ tr:last-child td {
   width: min(560px, calc(100% - 1.25rem));
 }
 
-.panel-patient .btn {
+.page-patient .btn {
   width: 100%;
+}
+
+.time-slots {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.time-slots legend {
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+}
+
+.time-options {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.time-option {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.time-option input {
+  width: auto;
+  min-height: auto;
+  accent-color: var(--accent);
+}
+
+.time-option:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(15, 110, 106, 0.15);
 }
 
 .doctor-meta {
