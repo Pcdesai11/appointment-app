@@ -35,6 +35,8 @@ COLUMNS = [
     "Area",
     "Mobile",
     "Email",
+    "EditToken",
+    "CalendarEventId",
 ]
 ALLOWED_TIMES = ["12:00", "15:00", "18:00"]
 TIME_LABELS = {
@@ -157,7 +159,7 @@ def _rows_from_workbook_bytes(data: bytes) -> list[dict[str, str]]:
                 if key == "Time" and re.fullmatch(r"\d{1,2}:\d{2}:\d{2}", text):
                     text = text[:5]
                 item[key] = text
-        if any(item[c] for c in ("BabyName", "Date", "Time", "Mobile")):
+        if any(item[c] for c in ("BabyName", "Date", "Time", "Mobile", "EditToken")):
             rows.append(item)
     return rows
 
@@ -296,11 +298,23 @@ def read_appointments() -> list[dict[str, str]]:
     return _rows_from_workbook_bytes(read_excel_bytes())
 
 
-def slot_taken(date_str: str, time_str: str) -> bool:
+def slot_taken(date_str: str, time_str: str, exclude_token: str | None = None) -> bool:
     for row in read_appointments():
+        if exclude_token and row.get("EditToken") == exclude_token:
+            continue
         if row.get("Date") == date_str and row.get("Time") == time_str:
             return True
     return False
+
+
+def find_booking(token: str) -> dict[str, str] | None:
+    token = (token or "").strip()
+    if not token:
+        return None
+    for row in read_appointments():
+        if row.get("EditToken") == token:
+            return row
+    return None
 
 
 def append_appointment(booking: dict[str, str]) -> None:
@@ -310,8 +324,8 @@ def append_appointment(booking: dict[str, str]) -> None:
     ws = wb.active
 
     # If this is a legacy workbook, rewrite headers to the new schema once.
-    first = [ws.cell(1, i).value for i in range(1, len(COLUMNS) + 1)]
-    if first[0] != "Timestamp" or "BabyName" not in [str(v or "") for v in first]:
+    headers = [str(ws.cell(1, i).value or "") for i in range(1, ws.max_column + 1)]
+    if "BabyName" not in headers or "EditToken" not in headers:
         existing = _rows_from_workbook_bytes(data)
         write_excel_bytes(_workbook_bytes_from_rows(existing + [booking]))
         return
@@ -322,6 +336,65 @@ def append_appointment(booking: dict[str, str]) -> None:
     buf = io.BytesIO()
     wb.save(buf)
     write_excel_bytes(buf.getvalue())
+
+
+def update_appointment(token: str, booking: dict[str, str]) -> bool:
+    rows = read_appointments()
+    found = False
+    for i, row in enumerate(rows):
+        if row.get("EditToken") == token:
+            booking["EditToken"] = token
+            booking["Timestamp"] = row.get("Timestamp") or booking.get("Timestamp", "")
+            if not booking.get("CalendarEventId"):
+                booking["CalendarEventId"] = row.get("CalendarEventId", "")
+            rows[i] = {c: booking.get(c, "") for c in COLUMNS}
+            found = True
+            break
+    if not found:
+        return False
+    write_excel_bytes(_workbook_bytes_from_rows(rows))
+    return True
+
+
+def parse_booking_form(exclude_token: str | None = None) -> tuple[dict[str, str] | None, str | None]:
+    """Validate form POST. Returns (booking, error_message)."""
+    baby_name = request.form.get("baby_name", "").strip()
+    age = request.form.get("age", "").strip()
+    weight = request.form.get("weight", "").strip()
+    date_str = request.form.get("date", "").strip()
+    time_str = request.form.get("time", "").strip()
+    area = request.form.get("area", "").strip()
+    mobile = request.form.get("mobile", "").strip()
+    email = request.form.get("email", "").strip()
+
+    if not all([baby_name, age, weight, date_str, time_str, area, mobile]):
+        return None, "Please fill in all required fields. · કૃપા કરીને બધા જરૂરી ખાના ભરો."
+    if time_str not in ALLOWED_TIMES:
+        return None, "Please choose 12 PM, 3 PM, or 6 PM only. · માત્ર ૧૨, ૩ અથવા ૬ વાગ્યાનો સમય પસંદ કરો."
+    if not re.fullmatch(r"[0-9+\-\s]{8,15}", mobile):
+        return None, "Enter a valid mobile number. · યોગ્ય મોબાઇલ નંબર લખો."
+    if slot_taken(date_str, time_str, exclude_token=exclude_token):
+        return None, (
+            "That date and time is already booked. Please choose another. · "
+            "આ તારીખ અને સમય પહેલેથી બુક થયેલ છે. બીજો સમય પસંદ કરો."
+        )
+
+    return (
+        {
+            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "BabyName": baby_name,
+            "Age": age,
+            "Weight": weight,
+            "Date": date_str,
+            "Time": time_str,
+            "Area": area,
+            "Mobile": mobile,
+            "Email": email,
+            "EditToken": "",
+            "CalendarEventId": "",
+        },
+        None,
+    )
 
 
 # --- Ask / filter ------------------------------------------------------------------
@@ -683,65 +756,96 @@ def require_doctor(view):
 @app.route("/api/index", methods=["GET", "POST"])
 def patient_form():
     """Public patient link — khatna booking form only."""
+    import uuid
+
     if request.method == "POST":
-        baby_name = request.form.get("baby_name", "").strip()
-        age = request.form.get("age", "").strip()
-        weight = request.form.get("weight", "").strip()
-        date_str = request.form.get("date", "").strip()
-        time_str = request.form.get("time", "").strip()
-        area = request.form.get("area", "").strip()
-        mobile = request.form.get("mobile", "").strip()
-        email = request.form.get("email", "").strip()
+        booking, error = parse_booking_form()
+        if error:
+            flash(error, "error")
+            return redirect(url_for("patient_form"))
 
-        if not all([baby_name, age, weight, date_str, time_str, area, mobile]):
-            flash("Please fill in all required fields. / કૃપા કરીને બધા જરૂરી ખાના ભરો.", "error")
-        elif time_str not in ALLOWED_TIMES:
-            flash("Please choose 12 PM, 3 PM, or 6 PM only. / માત્ર ૧૨, ૩ અથવા ૬ વાગ્યાનો સમય પસંદ કરો.", "error")
-        elif not re.fullmatch(r"[0-9+\-\s]{8,15}", mobile):
-            flash("Enter a valid mobile number. / યોગ્ય મોબાઇલ નંબર લખો.", "error")
-        elif slot_taken(date_str, time_str):
-            flash(
-                "That date and time is already booked. Please choose another. / "
-                "આ તારીખ અને સમય પહેલેથી બુક થયેલ છે. બીજો સમય પસંદ કરો.",
-                "error",
-            )
-        else:
-            booking = {
-                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "BabyName": baby_name,
-                "Age": age,
-                "Weight": weight,
-                "Date": date_str,
-                "Time": time_str,
-                "Area": area,
-                "Mobile": mobile,
-                "Email": email,
-            }
+        assert booking is not None
+        booking["EditToken"] = uuid.uuid4().hex
+        try:
             try:
-                append_appointment(booking)
-                cal_note = ""
-                try:
-                    from google_calendar import create_khatna_event
+                from google_calendar import create_khatna_event
 
-                    link = create_khatna_event(booking)
-                    if link:
-                        cal_note = " Calendar updated."
-                except Exception:
-                    cal_note = " (Saved, but calendar sync failed — doctor can still see it.)"
-                flash(
-                    "Thanks — your khatna appointment request was submitted."
-                    + cal_note
-                    + " / આભાર — તમારી ખતના અપોઇન્ટમેન્ટ મોકલાઈ ગઈ.",
-                    "success",
-                )
-            except Exception as exc:
-                flash(f"Could not submit right now. Please try again. ({exc})", "error")
-        return redirect(url_for("patient_form"))
+                event_id = create_khatna_event(booking)
+                if event_id:
+                    booking["CalendarEventId"] = event_id
+            except Exception:
+                pass
+            append_appointment(booking)
+            return redirect(url_for("booking_confirmation", token=booking["EditToken"]))
+        except Exception as exc:
+            flash(f"Could not submit right now. Please try again. ({exc})", "error")
+            return redirect(url_for("patient_form"))
 
     return render_template(
         "patient.html",
         allowed_times=ALLOWED_TIMES,
         time_labels=TIME_LABELS,
+        booking=None,
+        edit_mode=False,
+        form_action=url_for("patient_form"),
+    )
+
+
+@app.route("/confirmation/<token>")
+def booking_confirmation(token: str):
+    booking = find_booking(token)
+    if not booking:
+        flash("Booking not found. You can submit a new appointment below.", "error")
+        return redirect(url_for("patient_form"))
+    return render_template(
+        "confirmation.html",
+        booking=booking,
+        time_labels=TIME_LABELS,
+        edit_url=url_for("edit_booking", token=token),
+    )
+
+
+@app.route("/edit/<token>", methods=["GET", "POST"])
+def edit_booking(token: str):
+    existing = find_booking(token)
+    if not existing:
+        flash("Booking not found or link expired. Please submit a new appointment.", "error")
+        return redirect(url_for("patient_form"))
+
+    if request.method == "POST":
+        booking, error = parse_booking_form(exclude_token=token)
+        if error:
+            flash(error, "error")
+            return redirect(url_for("edit_booking", token=token))
+
+        assert booking is not None
+        booking["EditToken"] = token
+        booking["CalendarEventId"] = existing.get("CalendarEventId", "")
+        try:
+            try:
+                from google_calendar import update_khatna_event
+
+                event_id = update_khatna_event(booking.get("CalendarEventId", ""), booking)
+                if event_id:
+                    booking["CalendarEventId"] = event_id
+            except Exception:
+                pass
+            if not update_appointment(token, booking):
+                flash("Could not update this booking.", "error")
+                return redirect(url_for("patient_form"))
+            flash("Booking updated successfully. · બુકિંગ અપડેટ થઈ ગયું.", "success")
+            return redirect(url_for("booking_confirmation", token=token))
+        except Exception as exc:
+            flash(f"Could not update right now. Please try again. ({exc})", "error")
+            return redirect(url_for("edit_booking", token=token))
+
+    return render_template(
+        "patient.html",
+        allowed_times=ALLOWED_TIMES,
+        time_labels=TIME_LABELS,
+        booking=existing,
+        edit_mode=True,
+        form_action=url_for("edit_booking", token=token),
     )
 
 

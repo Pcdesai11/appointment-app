@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#e8f1f4" />
+  <title>Booking confirmed | અપોઇન્ટમેન્ટ કન્ફર્મ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="page page-patient">
+    <header class="header">
+      <p class="brand">Booking confirmed</p>
+      <p class="tagline">Thank you. Please read the precautions below. · આભાર. નીચેની સાવચેતીઓ વાંચો.</p>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash flash-{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel panel-patient">
+      <h2>Your booking · તમારું બુકિંગ</h2>
+      <dl class="booking-summary">
+        <div><dt>Baby</dt><dd>{{ booking.BabyName }}</dd></div>
+        <div><dt>Age</dt><dd>{{ booking.Age }}</dd></div>
+        <div><dt>Weight</dt><dd>{{ booking.Weight }}</dd></div>
+        <div><dt>Date</dt><dd>{{ booking.Date }}</dd></div>
+        <div><dt>Time</dt><dd>{{ time_labels.get(booking.Time, booking.Time) }}</dd></div>
+        <div><dt>Area</dt><dd>{{ booking.Area }}</dd></div>
+        <div><dt>Mobile</dt><dd>{{ booking.Mobile }}</dd></div>
+        {% if booking.Email %}
+          <div><dt>Email</dt><dd>{{ booking.Email }}</dd></div>
+        {% endif %}
+      </dl>
+      <div class="confirm-actions">
+        <a class="btn btn-secondary" href="{{ edit_url }}">Edit booking · બુકિંગ સુધારો</a>
+        <a class="btn btn-ghost" href="{{ url_for('patient_form') }}">New booking · નવું બુકિંગ</a>
+      </div>
+    </section>
+
+    <section class="panel panel-patient precautions">
+      <h2>Precautions · સાવચેતીઓ</h2>
+      <p class="hint">Follow your doctor’s advice. These are general reminders only. · ડૉક્ટરની સલાહનું પાલન કરો.</p>
+
+      <h3 class="label-en">Before the appointment</h3>
+      <p class="label-gu">અપોઇન્ટમેન્ટ પહેલાં</p>
+      <ul class="tips">
+        <li>Keep the baby clean and dry. · બાળકને સાફ અને સૂકું રાખો.</li>
+        <li>Inform the doctor about any fever, cough, cold, allergy, or medicine. · તાવ, ઉધરસ, શરદી, એલર્જી કે દવા વિશે જણાવો.</li>
+        <li>Bring a clean cloth / diaper and the baby’s regular care items. · સાફ કપડું/ડાયપર અને જરૂરી વસ્તુઓ લાવો.</li>
+        <li>Arrive 10–15 minutes early. · ૧૦–૧૫ મિનિટ વહેલા આવો.</li>
+        <li>One parent/guardian should stay with the baby. · એક માતા-પિતા/વાલી સાથે રહે.</li>
+      </ul>
+
+      <h3 class="label-en">After the procedure</h3>
+      <p class="label-gu">પ્રક્રિયા પછી</p>
+      <ul class="tips">
+        <li>Follow the dressing and cleaning instructions given by the doctor. · ડૉક્ટરની સફાઈ/ડ્રેસિંગની સૂચના પાળો.</li>
+        <li>Give medicines only as prescribed. · ફક્ત સૂચિત દવા જ આપો.</li>
+        <li>Keep the area clean and dry as advised. · વિસ્તારને સાફ અને સૂકું રાખો.</li>
+        <li>Contact the doctor immediately for high fever, heavy bleeding, swelling, or unusual crying. · વધુ તાવ, વધુ રક્તસ્ત્રાવ, સોજો કે અસામાન્ય રુદન હોય તો તરત સંપર્ક કરો.</li>
+        <li>Do not apply any home remedies unless the doctor approves. · ડૉક્ટર વગર ઘરેલું ઉપચાર ન લગાડો.</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

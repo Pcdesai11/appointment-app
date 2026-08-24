@@ -465,6 +465,67 @@ tr:last-child td {
   min-height: 52px;
 }
 
+.booking-summary {
+  margin: 0.75rem 0 1rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.booking-summary > div {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.45rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.booking-summary dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.booking-summary dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.confirm-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.confirm-actions .btn,
+.submit-bar .btn-ghost {
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.precautions {
+  margin-top: 1rem;
+}
+
+.precautions h3 {
+  margin: 1rem 0 0.15rem;
+}
+
+.precautions .label-gu {
+  margin: 0 0 0.35rem;
+}
+
+.a.btn,
+a.btn {
+  box-sizing: border-box;
+}
+
 .doctor-meta {
   margin-top: 1rem;
   display: grid;
