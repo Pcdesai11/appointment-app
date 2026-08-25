@@ -38,11 +38,11 @@ COLUMNS = [
     "EditToken",
     "CalendarEventId",
 ]
-ALLOWED_TIMES = ["12:00", "15:00", "18:00"]
+ALLOWED_TIMES = ["10:00", "13:30", "17:00"]
 TIME_LABELS = {
-    "12:00": "12:00 PM · બપોરે ૧૨",
-    "15:00": "3:00 PM · બપોરે ૩",
-    "18:00": "6:00 PM · સાંજે ૬",
+    "10:00": "10:00 AM · સવારે ૧૦",
+    "13:30": "1:30 PM · બપોરે ૧:૩૦",
+    "17:00": "5:00 PM · સાંજે ૫",
 }
 XLSX_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -443,7 +443,7 @@ def parse_booking_form(exclude_token: str | None = None) -> tuple[dict[str, str]
     if not all([baby_name, age, weight, date_str, time_str, area, mobile]):
         return None, "Please fill in all required fields. · કૃપા કરીને બધા જરૂરી ખાના ભરો."
     if time_str not in ALLOWED_TIMES:
-        return None, "Please choose 12 PM, 3 PM, or 6 PM only. · માત્ર ૧૨, ૩ અથવા ૬ વાગ્યાનો સમય પસંદ કરો."
+        return None, "Please choose 10 AM, 1:30 PM, or 5 PM only. · માત્ર સવારે ૧૦, બપોરે ૧:૩૦ અથવા સાંજે ૫ વાગ્યાનો સમય પસંદ કરો."
     if not re.fullmatch(r"[0-9+\-\s]{8,15}", mobile):
         return None, "Enter a valid mobile number. · યોગ્ય મોબાઇલ નંબર લખો."
 
@@ -624,7 +624,7 @@ def _fuzzy_contains(haystack: str, needle: str) -> bool:
 
 
 def _human_time(value: str) -> str:
-    plain = {"12:00": "12:00 PM", "15:00": "3:00 PM", "18:00": "6:00 PM"}
+    plain = {"10:00": "10:00 AM", "13:30": "1:30 PM", "17:00": "5:00 PM"}
     return plain.get(value, TIME_LABELS.get(value, value or "—"))
 
 
@@ -667,14 +667,14 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
     notes: list[str] = []
 
     if re.search(r"\b(afternoon|noon)\b", q) and not _extract_time_queries(q):
-        filtered = [r for r in filtered if r.get("Time") in {"12:00", "15:00"}]
-        notes.append("afternoon slots (12 PM / 3 PM)")
+        filtered = [r for r in filtered if r.get("Time") == "13:30"]
+        notes.append("afternoon slot (1:30 PM)")
     elif re.search(r"\bevening\b", q) and not _extract_time_queries(q):
-        filtered = [r for r in filtered if r.get("Time") == "18:00"]
-        notes.append("evening slot (6 PM)")
+        filtered = [r for r in filtered if r.get("Time") == "17:00"]
+        notes.append("evening slot (5 PM)")
     elif re.search(r"\bmorning\b", q) and not _extract_time_queries(q):
-        filtered = [r for r in filtered if r.get("Time") == "12:00"]
-        notes.append("noon slot (12 PM)")
+        filtered = [r for r in filtered if r.get("Time") == "10:00"]
+        notes.append("morning slot (10 AM)")
 
     time_queries = _extract_time_queries(q)
     if time_queries:
@@ -799,9 +799,9 @@ def ask_free_ai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[st
 
     system = (
         "You are a careful clinic assistant for a doctor managing khatna (circumcision) bookings. "
-        "Available appointment times are only 12:00 (12 PM), 15:00 (3 PM), and 18:00 (6 PM). "
-        "Interpret casual language: 'at 6' / '6pm' / 'evening' => 18:00; "
-        "'at 3' / '3pm' may mean 15:00; 'noon' / '12' / 'afternoon' may mean 12:00 or 15:00. "
+        "Available appointment times are only 10:00 (10 AM), 13:30 (1:30 PM), and 17:00 (5 PM). "
+        "Interpret casual language: 'at 5' / '5pm' / 'evening' => 17:00; "
+        "'at 1:30' / '1:30pm' / 'afternoon' => 13:30; 'at 10' / '10am' / 'morning' => 10:00. "
         "Use the provided today/tomorrow dates. "
         "Return ONLY valid JSON with keys: indices (matching catalog index values) and summary. "
         "In summary: say how many matches, then list each with baby name, date, time, area, and mobile. "

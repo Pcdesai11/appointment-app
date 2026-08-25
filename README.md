@@ -7,7 +7,7 @@
 | **Patients** | `/` | Gujarati/English khatna booking form |
 | **Doctor** | `/doctor` | Ask AI, Excel download, all bookings |
 
-Patient times are fixed: **12 PM, 3 PM, 6 PM** only.
+Patient times are fixed: **10 AM, 1:30 PM, 5 PM** only.
 
 ## Form fields
 
@@ -15,7 +15,7 @@ Patient times are fixed: **12 PM, 3 PM, 6 PM** only.
 - Age / ઉંમર
 - Weight / વજન
 - Date / તારીખ
-- Time / સમય (12 / 3 / 6 PM)
+- Time / સમય (10 AM / 1:30 PM / 5 PM)
 - Area / વિસ્તાર
 - Mobile / મોબાઇલ
 - Email optional / ઈમેઈલ
