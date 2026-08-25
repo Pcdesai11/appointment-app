@@ -714,6 +714,27 @@ tr:last-child td {
   color: var(--accent-dark);
 }
 
+.cal-badge {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.cal-badge.ok {
+  background: #e5f6ec;
+  color: #1f6b3a;
+}
+
+.cal-badge.miss {
+  background: #fdecec;
+  color: #9b2c2c;
+}
+
 .booking-meta {
   display: flex;
   flex-wrap: wrap;

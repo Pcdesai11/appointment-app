@@ -26,6 +26,27 @@ def _service():
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
+def calendar_status_message() -> str:
+    """Verify env vars AND that the app can actually reach the calendar."""
+    if not calendar_configured():
+        return "Google Calendar not connected yet"
+    try:
+        calendar_id = os.environ["GOOGLE_CALENDAR_ID"].strip()
+        service = _service()
+        service.calendars().get(calendarId=calendar_id).execute()
+        return "Google Calendar connected"
+    except json.JSONDecodeError:
+        return "Calendar JSON key invalid — fix GOOGLE_SERVICE_ACCOUNT_JSON"
+    except Exception as exc:
+        text = str(exc).lower()
+        status = getattr(getattr(exc, "resp", None), "status", None)
+        if status == 404 or "notfound" in text or "404" in text:
+            return "Calendar ID not found — check GOOGLE_CALENDAR_ID"
+        if status == 403 or "forbidden" in text or "403" in text:
+            return "Share calendar with service account (Make changes to events)"
+        return "Calendar setup error — check Vercel env vars & share settings"
+
+
 def _event_body(booking: dict[str, str]) -> dict[str, Any]:
     tz = os.getenv("GOOGLE_CALENDAR_TIMEZONE", "Asia/Kolkata").strip() or "Asia/Kolkata"
     start = datetime.strptime(f"{booking['Date']} {booking['Time']}", "%Y-%m-%d %H:%M")

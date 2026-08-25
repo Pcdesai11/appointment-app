@@ -912,8 +912,9 @@ def patient_form():
                 event_id = create_khatna_event(booking)
                 if event_id:
                     booking["CalendarEventId"] = event_id
-            except Exception:
-                pass
+            except Exception as cal_exc:
+                # Booking still saves; doctor desk shows "Not on calendar".
+                print(f"Google Calendar create failed: {cal_exc}")
             append_appointment(booking)
             remember_booking(booking)
             return redirect(url_for("booking_confirmation", token=booking["EditToken"]))
@@ -1074,13 +1075,9 @@ def doctor_dashboard():
         else "Smart filter active"
     )
     try:
-        from google_calendar import calendar_configured
+        from google_calendar import calendar_status_message
 
-        calendar_status = (
-            "Google Calendar connected"
-            if calendar_configured()
-            else "Google Calendar not connected yet"
-        )
+        calendar_status = calendar_status_message()
     except Exception:
         calendar_status = "Google Calendar not connected yet"
     chat_history = list(session.get("doctor_chat") or [])
@@ -1125,10 +1122,12 @@ def doctor_dashboard():
         return (row.get("Date") or "", row.get("Time") or "", row.get("Timestamp") or "")
 
     appointments = sorted(appointments, key=sort_key)
+    calendar_synced_count = sum(1 for row in appointments if row.get("CalendarEventId"))
     return render_template(
         "doctor.html",
         appointments=appointments,
         booking_count=len(appointments),
+        calendar_synced_count=calendar_synced_count,
         chat_history=chat_history,
         excel_path=storage_label(),
         ai_status=ai_status,

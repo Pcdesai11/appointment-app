@@ -132,7 +132,7 @@
       <div class="panel-head row-head">
         <div>
           <h2>All bookings</h2>
-          <p class="hint">Sorted by date and time. Clear a case once the procedure is finished.</p>
+          <p class="hint">Sorted by date and time. {{ calendar_synced_count }} of {{ booking_count }} on Google Calendar. Clear a case once finished.</p>
         </div>
       </div>
 
@@ -145,7 +145,13 @@
                   <h3>{{ row.BabyName or '—' }}</h3>
                   <span class="time-pill">{{ time_labels.get(row.Time, row.Time) }}</span>
                 </div>
-                <p class="booking-date">{{ row.Date }}</p>
+                <p class="booking-date">{{ row.Date }}
+                  {% if row.CalendarEventId %}
+                    <span class="cal-badge ok">On calendar</span>
+                  {% else %}
+                    <span class="cal-badge miss">Not on calendar</span>
+                  {% endif %}
+                </p>
                 <div class="booking-meta">
                   <span>Age {{ row.Age or '—' }}</span>
                   <span>Weight {{ row.Weight or '—' }}</span>
