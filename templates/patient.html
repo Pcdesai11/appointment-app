@@ -14,9 +14,11 @@
 <body>
   <div class="page page-patient">
     <header class="header">
-      <p class="brand">{% if edit_mode %}Edit booking{% else %}Khatna Appointment{% endif %}</p>
+      <p class="brand">{% if doctor_mode %}Doctor edit{% elif edit_mode %}Edit booking{% else %}Khatna Appointment{% endif %}</p>
       <p class="tagline">
-        {% if edit_mode %}
+        {% if doctor_mode %}
+          Update this patient booking, then save. Changes sync to Excel and calendar.
+        {% elif edit_mode %}
           Update your details below, then save. · નીચે વિગતો સુધારીને સેવ કરો.
         {% else %}
           Fill in the details below. Your doctor will receive this booking automatically. · નીચેની માહિતી ભરો.
@@ -120,8 +122,8 @@
 
         <div class="submit-bar">
           {% if edit_mode %}
-            <button type="submit" class="btn btn-primary">Save changes · સેવ કરો</button>
-            <a class="btn btn-ghost" href="{{ url_for('booking_confirmation', token=booking.EditToken) }}">Cancel · રદ કરો</a>
+            <button type="submit" class="btn btn-primary">{% if doctor_mode %}Save booking{% else %}Save changes · સેવ કરો{% endif %}</button>
+            <a class="btn btn-ghost" href="{{ cancel_url }}">{% if doctor_mode %}Back to doctor desk{% else %}Cancel · રદ કરો{% endif %}</a>
           {% else %}
             <button type="submit" class="btn btn-primary">Submit · સબમિટ</button>
           {% endif %}

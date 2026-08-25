@@ -521,9 +521,22 @@ tr:last-child td {
   margin: 0 0 0.35rem;
 }
 
-.a.btn,
-a.btn {
-  box-sizing: border-box;
+.edit-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: #1c2b33;
+  color: #fff !important;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.edit-link:hover {
+  background: #101920;
 }
 
 .doctor-meta {

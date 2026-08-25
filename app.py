@@ -317,6 +317,44 @@ def find_booking(token: str) -> dict[str, str] | None:
     return None
 
 
+def ensure_edit_tokens() -> list[dict[str, str]]:
+    """Make sure every booking has an EditToken (for older rows)."""
+    import uuid
+
+    rows = read_appointments()
+    changed = False
+    for row in rows:
+        if not row.get("EditToken"):
+            row["EditToken"] = uuid.uuid4().hex
+            changed = True
+        for col in COLUMNS:
+            row.setdefault(col, "")
+    if changed:
+        write_excel_bytes(_workbook_bytes_from_rows(rows))
+    return rows
+
+
+def save_booking_update(token: str, existing: dict[str, str]) -> tuple[bool, str | None]:
+    """Validate POST and update booking. Returns (ok, error)."""
+    booking, error = parse_booking_form(exclude_token=token)
+    if error:
+        return False, error
+    assert booking is not None
+    booking["EditToken"] = token
+    booking["CalendarEventId"] = existing.get("CalendarEventId", "")
+    try:
+        from google_calendar import update_khatna_event
+
+        event_id = update_khatna_event(booking.get("CalendarEventId", ""), booking)
+        if event_id:
+            booking["CalendarEventId"] = event_id
+    except Exception:
+        pass
+    if not update_appointment(token, booking):
+        return False, "Could not update this booking."
+    return True, None
+
+
 def append_appointment(booking: dict[str, str]) -> None:
     """Append one row into the same Excel workbook and save it back."""
     data = read_excel_bytes()
@@ -787,7 +825,9 @@ def patient_form():
         time_labels=TIME_LABELS,
         booking=None,
         edit_mode=False,
+        doctor_mode=False,
         form_action=url_for("patient_form"),
+        cancel_url=None,
     )
 
 
@@ -813,31 +853,12 @@ def edit_booking(token: str):
         return redirect(url_for("patient_form"))
 
     if request.method == "POST":
-        booking, error = parse_booking_form(exclude_token=token)
-        if error:
-            flash(error, "error")
+        ok, error = save_booking_update(token, existing)
+        if not ok:
+            flash(error or "Could not update this booking.", "error")
             return redirect(url_for("edit_booking", token=token))
-
-        assert booking is not None
-        booking["EditToken"] = token
-        booking["CalendarEventId"] = existing.get("CalendarEventId", "")
-        try:
-            try:
-                from google_calendar import update_khatna_event
-
-                event_id = update_khatna_event(booking.get("CalendarEventId", ""), booking)
-                if event_id:
-                    booking["CalendarEventId"] = event_id
-            except Exception:
-                pass
-            if not update_appointment(token, booking):
-                flash("Could not update this booking.", "error")
-                return redirect(url_for("patient_form"))
-            flash("Booking updated successfully. · બુકિંગ અપડેટ થઈ ગયું.", "success")
-            return redirect(url_for("booking_confirmation", token=token))
-        except Exception as exc:
-            flash(f"Could not update right now. Please try again. ({exc})", "error")
-            return redirect(url_for("edit_booking", token=token))
+        flash("Booking updated successfully. · બુકિંગ અપડેટ થઈ ગયું.", "success")
+        return redirect(url_for("booking_confirmation", token=token))
 
     return render_template(
         "patient.html",
@@ -845,7 +866,38 @@ def edit_booking(token: str):
         time_labels=TIME_LABELS,
         booking=existing,
         edit_mode=True,
+        doctor_mode=False,
         form_action=url_for("edit_booking", token=token),
+        cancel_url=url_for("booking_confirmation", token=token),
+    )
+
+
+@app.route("/doctor/edit/<token>", methods=["GET", "POST"])
+@require_doctor
+def doctor_edit_booking(token: str):
+    ensure_edit_tokens()
+    existing = find_booking(token)
+    if not existing:
+        flash("Booking not found.", "error")
+        return redirect(url_for("doctor_dashboard"))
+
+    if request.method == "POST":
+        ok, error = save_booking_update(token, existing)
+        if not ok:
+            flash(error or "Could not update this booking.", "error")
+            return redirect(url_for("doctor_edit_booking", token=token))
+        flash("Booking updated.", "success")
+        return redirect(url_for("doctor_dashboard"))
+
+    return render_template(
+        "patient.html",
+        allowed_times=ALLOWED_TIMES,
+        time_labels=TIME_LABELS,
+        booking=existing,
+        edit_mode=True,
+        doctor_mode=True,
+        form_action=url_for("doctor_edit_booking", token=token),
+        cancel_url=url_for("doctor_dashboard"),
     )
 
 
@@ -897,6 +949,8 @@ def doctor_dashboard():
     except Exception:
         calendar_status = "Google Calendar not connected yet"
     chat_history = list(session.get("doctor_chat") or [])
+    # Ensure tokens exist before ask/list so Edit links always work.
+    ensure_edit_tokens()
 
     if request.method == "POST":
         action = request.form.get("action")
@@ -930,7 +984,7 @@ def doctor_dashboard():
                 session["doctor_chat"] = chat_history
             return redirect(url_for("doctor_dashboard"))
 
-    appointments = read_appointments()
+    appointments = ensure_edit_tokens()
     return render_template(
         "doctor.html",
         appointments=appointments,

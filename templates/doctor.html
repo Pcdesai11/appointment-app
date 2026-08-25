@@ -57,6 +57,7 @@
                           <th>Time</th>
                           <th>Mobile</th>
                           <th>Area</th>
+                          <th></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -67,6 +68,13 @@
                             <td data-label="Time">{{ row.Time }}</td>
                             <td data-label="Mobile">{{ row.Mobile }}</td>
                             <td data-label="Area">{{ row.Area }}</td>
+                            <td data-label="Edit">
+                              {% if row.EditToken %}
+                                <a class="edit-link" href="{{ url_for('doctor_edit_booking', token=row.EditToken) }}">Edit</a>
+                              {% else %}
+                                —
+                              {% endif %}
+                            </td>
                           </tr>
                         {% endfor %}
                       </tbody>
@@ -115,7 +123,7 @@
         <ul class="tips">
           <li>Send patients only the booking link above.</li>
           <li>Patients can only pick 12 PM, 3 PM, or 6 PM.</li>
-          <li>New bookings save to Excel and sync to Google Calendar when connected.</li>
+          <li>Use <strong>Edit</strong> on any booking to change details.</li>
         </ul>
       </section>
     </main>
@@ -136,6 +144,7 @@
                 <th>Mobile</th>
                 <th>Email</th>
                 <th>Saved</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -150,6 +159,13 @@
                   <td data-label="Mobile">{{ row.Mobile }}</td>
                   <td data-label="Email">{{ row.Email or '—' }}</td>
                   <td data-label="Saved">{{ row.Timestamp }}</td>
+                  <td data-label="Edit">
+                    {% if row.EditToken %}
+                      <a class="edit-link" href="{{ url_for('doctor_edit_booking', token=row.EditToken) }}">Edit</a>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>
