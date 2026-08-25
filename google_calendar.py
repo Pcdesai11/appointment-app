@@ -76,3 +76,14 @@ def update_khatna_event(event_id: str, booking: dict[str, str]) -> str | None:
         return event.get("id") or event_id
     except Exception:
         return create_khatna_event(booking)
+
+
+def delete_khatna_event(event_id: str) -> None:
+    if not calendar_configured() or not event_id:
+        return
+    calendar_id = os.environ["GOOGLE_CALENDAR_ID"].strip()
+    service = _service()
+    try:
+        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+    except Exception:
+        pass

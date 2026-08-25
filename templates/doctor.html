@@ -11,18 +11,31 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <div class="page">
-    <header class="header">
-      <p class="brand">Doctor desk</p>
-      <p class="tagline">Khatna bookings, AI tracking, Excel export, and Google Calendar.</p>
-      <p class="excel-path">
-        <code>{{ excel_path }}</code>
-        <a href="{{ url_for('download_excel') }}">Download appointments.xlsx</a>
-        <a class="link-muted" href="{{ url_for('doctor_logout') }}">Sign out</a>
-      </p>
-      <div class="doctor-meta">
-        <p><strong>Patient link</strong> (share only this): <a href="{{ patient_link }}">{{ patient_link }}</a></p>
-        <p class="ai-status">{{ ai_status }} · {{ calendar_status }}</p>
+  <div class="page page-doctor">
+    <header class="header doctor-header">
+      <div class="doctor-header-top">
+        <div>
+          <p class="brand">Doctor desk</p>
+          <p class="tagline">Manage khatna bookings, ask AI, and clear finished cases.</p>
+        </div>
+        <div class="doctor-header-actions">
+          <a class="btn btn-secondary btn-compact" href="{{ url_for('download_excel') }}">Download Excel</a>
+          <a class="btn btn-ghost btn-compact" href="{{ url_for('doctor_logout') }}">Sign out</a>
+        </div>
+      </div>
+
+      <div class="doctor-stats">
+        <div class="stat-chip"><span>{{ booking_count }}</span> bookings</div>
+        <div class="stat-chip subtle">{{ ai_status }}</div>
+        <div class="stat-chip subtle">{{ calendar_status }}</div>
+      </div>
+
+      <div class="share-box">
+        <p class="share-label">Patient booking link</p>
+        <div class="share-row">
+          <code id="patient-link">{{ patient_link }}</code>
+          <button type="button" class="btn btn-secondary btn-compact" id="copy-link">Copy</button>
+        </div>
       </div>
     </header>
 
@@ -38,8 +51,10 @@
 
     <main class="layout layout-doctor">
       <section class="panel panel-ask">
-        <h2>Ask AI</h2>
-        <p class="hint">Ask as many questions as you want. Tap <strong>No more questions</strong> when you’re done.</p>
+        <div class="panel-head">
+          <h2>Ask AI</h2>
+          <p class="hint">Ask follow-up questions anytime. Clear the chat when you’re done.</p>
+        </div>
 
         {% if chat_history %}
           <div class="chat-thread" id="chat-thread">
@@ -48,37 +63,24 @@
                 <p class="chat-q"><span>You</span> {{ turn.question }}</p>
                 <p class="ask-summary">{{ turn.summary }}</p>
                 {% if turn.results %}
-                  <div class="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Baby</th>
-                          <th>Date</th>
-                          <th>Time</th>
-                          <th>Mobile</th>
-                          <th>Area</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for row in turn.results %}
-                          <tr>
-                            <td data-label="Baby">{{ row.BabyName }}</td>
-                            <td data-label="Date">{{ row.Date }}</td>
-                            <td data-label="Time">{{ row.Time }}</td>
-                            <td data-label="Mobile">{{ row.Mobile }}</td>
-                            <td data-label="Area">{{ row.Area }}</td>
-                            <td data-label="Edit">
-                              {% if row.EditToken %}
-                                <a class="edit-link" href="{{ url_for('doctor_edit_booking', token=row.EditToken) }}">Edit</a>
-                              {% else %}
-                                —
-                              {% endif %}
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
+                  <div class="booking-cards compact">
+                    {% for row in turn.results %}
+                      <article class="booking-card">
+                        <div class="booking-card-main">
+                          <h3>{{ row.BabyName or '—' }}</h3>
+                          <p>{{ row.Date }} · {{ time_labels.get(row.Time, row.Time) }}</p>
+                          <p class="muted">{{ row.Mobile }} · {{ row.Area }}</p>
+                        </div>
+                        {% if row.EditToken %}
+                          <div class="booking-actions">
+                            <a class="edit-link" href="{{ url_for('doctor_edit_booking', token=row.EditToken) }}">Edit</a>
+                            <form method="post" action="{{ url_for('doctor_clear_booking', token=row.EditToken) }}" onsubmit="return confirm('Clear this booking? This cannot be undone.');">
+                              <button type="submit" class="clear-link">Clear</button>
+                            </form>
+                          </div>
+                        {% endif %}
+                      </article>
+                    {% endfor %}
                   </div>
                 {% else %}
                   <p class="empty">No matching appointments.</p>
@@ -89,7 +91,6 @@
         {% endif %}
 
         <form method="post" class="form ask-form" id="ask-form">
-          <input type="hidden" name="action" value="ask" />
           <label>
             {% if chat_history %}Next question{% else %}Question{% endif %}
             <input
@@ -97,79 +98,71 @@
               name="question"
               value=""
               placeholder="Who is booked at 6pm tomorrow?"
-              required
-              autofocus
               enterkeyhint="send"
               autocomplete="off"
+              {% if not chat_history %}required{% endif %}
             />
           </label>
           <div class="ask-actions">
-            <button type="submit" class="btn btn-secondary">
+            <button type="submit" class="btn btn-secondary" name="action" value="ask">
               {% if chat_history %}Ask another{% else %}Ask{% endif %}
             </button>
+            {% if chat_history %}
+              <button type="submit" class="btn btn-ghost" name="action" value="clear_chat" formnovalidate>No more questions</button>
+            {% endif %}
           </div>
         </form>
-
-        {% if chat_history %}
-          <form method="post" class="clear-chat-form">
-            <input type="hidden" name="action" value="clear_chat" />
-            <button type="submit" class="btn btn-ghost">No more questions / Cancel</button>
-          </form>
-        {% endif %}
       </section>
 
-      <section class="panel">
-        <h2>Quick tips</h2>
+      <aside class="panel side-panel">
+        <h2>How it works</h2>
         <ul class="tips">
-          <li>Send patients only the booking link above.</li>
-          <li>Patients can only pick 12 PM, 3 PM, or 6 PM.</li>
-          <li>Use <strong>Edit</strong> on any booking to change details.</li>
+          <li>Share only the patient link.</li>
+          <li>Slots are fixed: 12 PM, 3 PM, 6 PM.</li>
+          <li><strong>Edit</strong> to change a booking.</li>
+          <li><strong>Clear</strong> after the operation is done.</li>
         </ul>
-      </section>
+      </aside>
     </main>
 
     <section class="panel panel-all">
-      <h2>All khatna appointments</h2>
+      <div class="panel-head row-head">
+        <div>
+          <h2>All bookings</h2>
+          <p class="hint">Sorted by date and time. Clear a case once the procedure is finished.</p>
+        </div>
+      </div>
+
       {% if appointments %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Baby</th>
-                <th>Age</th>
-                <th>Weight</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Area</th>
-                <th>Mobile</th>
-                <th>Email</th>
-                <th>Saved</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in appointments %}
-                <tr>
-                  <td data-label="Baby">{{ row.BabyName }}</td>
-                  <td data-label="Age">{{ row.Age }}</td>
-                  <td data-label="Weight">{{ row.Weight }}</td>
-                  <td data-label="Date">{{ row.Date }}</td>
-                  <td data-label="Time">{{ row.Time }}</td>
-                  <td data-label="Area">{{ row.Area }}</td>
-                  <td data-label="Mobile">{{ row.Mobile }}</td>
-                  <td data-label="Email">{{ row.Email or '—' }}</td>
-                  <td data-label="Saved">{{ row.Timestamp }}</td>
-                  <td data-label="Edit">
-                    {% if row.EditToken %}
-                      <a class="edit-link" href="{{ url_for('doctor_edit_booking', token=row.EditToken) }}">Edit</a>
-                    {% else %}
-                      —
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="booking-cards">
+          {% for row in appointments %}
+            <article class="booking-card">
+              <div class="booking-card-main">
+                <div class="booking-title-row">
+                  <h3>{{ row.BabyName or '—' }}</h3>
+                  <span class="time-pill">{{ time_labels.get(row.Time, row.Time) }}</span>
+                </div>
+                <p class="booking-date">{{ row.Date }}</p>
+                <div class="booking-meta">
+                  <span>Age {{ row.Age or '—' }}</span>
+                  <span>Weight {{ row.Weight or '—' }}</span>
+                  <span>{{ row.Area or '—' }}</span>
+                </div>
+                <div class="booking-meta">
+                  <a class="phone-link" href="tel:{{ row.Mobile }}">{{ row.Mobile }}</a>
+                  {% if row.Email %}<span>{{ row.Email }}</span>{% endif %}
+                </div>
+              </div>
+              {% if row.EditToken %}
+                <div class="booking-actions">
+                  <a class="edit-link" href="{{ url_for('doctor_edit_booking', token=row.EditToken) }}">Edit</a>
+                  <form method="post" action="{{ url_for('doctor_clear_booking', token=row.EditToken) }}" onsubmit="return confirm('Clear booking for {{ row.BabyName }}? This removes it from the list and calendar.');">
+                    <button type="submit" class="clear-link">Clear done</button>
+                  </form>
+                </div>
+              {% endif %}
+            </article>
+          {% endfor %}
         </div>
       {% else %}
         <p class="empty">No appointments yet. Share the patient link to start receiving bookings.</p>
@@ -179,6 +172,19 @@
   <script>
     const thread = document.getElementById("chat-thread");
     if (thread) thread.scrollTop = thread.scrollHeight;
+    const copyBtn = document.getElementById("copy-link");
+    const linkEl = document.getElementById("patient-link");
+    if (copyBtn && linkEl) {
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(linkEl.textContent.trim());
+          copyBtn.textContent = "Copied";
+          setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+        } catch (e) {
+          copyBtn.textContent = "Copy failed";
+        }
+      });
+    }
   </script>
 </body>
 </html>

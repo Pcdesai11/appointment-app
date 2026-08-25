@@ -394,6 +394,22 @@ def update_appointment(token: str, booking: dict[str, str]) -> bool:
     return True
 
 
+def delete_appointment(token: str) -> dict[str, str] | None:
+    """Remove a booking. Returns the deleted row (or None)."""
+    rows = read_appointments()
+    kept: list[dict[str, str]] = []
+    deleted: dict[str, str] | None = None
+    for row in rows:
+        if row.get("EditToken") == token and deleted is None:
+            deleted = row
+            continue
+        kept.append(row)
+    if deleted is None:
+        return None
+    write_excel_bytes(_workbook_bytes_from_rows(kept))
+    return deleted
+
+
 def parse_booking_form(exclude_token: str | None = None) -> tuple[dict[str, str] | None, str | None]:
     """Validate form POST. Returns (booking, error_message)."""
     baby_name = request.form.get("baby_name", "").strip()
@@ -901,6 +917,39 @@ def doctor_edit_booking(token: str):
     )
 
 
+@app.route("/doctor/clear/<token>", methods=["POST"])
+@require_doctor
+def doctor_clear_booking(token: str):
+    ensure_edit_tokens()
+    deleted = delete_appointment(token)
+    if not deleted:
+        flash("Booking not found.", "error")
+        return redirect(url_for("doctor_dashboard"))
+
+    try:
+        from google_calendar import delete_khatna_event
+
+        delete_khatna_event(deleted.get("CalendarEventId", ""))
+    except Exception:
+        pass
+
+    # Drop cleared rows from the open AI chat thread
+    from flask import session
+
+    history = list(session.get("doctor_chat") or [])
+    cleaned = []
+    for turn in history:
+        results = [r for r in (turn.get("results") or []) if r.get("EditToken") != token]
+        turn = dict(turn)
+        turn["results"] = results
+        cleaned.append(turn)
+    session["doctor_chat"] = cleaned
+
+    name = deleted.get("BabyName") or "Booking"
+    flash(f"Cleared booking for {name}.", "success")
+    return redirect(url_for("doctor_dashboard"))
+
+
 @app.route("/doctor/login", methods=["GET", "POST"])
 def doctor_login():
     from flask import session
@@ -985,14 +1034,21 @@ def doctor_dashboard():
             return redirect(url_for("doctor_dashboard"))
 
     appointments = ensure_edit_tokens()
+
+    def sort_key(row: dict[str, str]):
+        return (row.get("Date") or "", row.get("Time") or "", row.get("Timestamp") or "")
+
+    appointments = sorted(appointments, key=sort_key)
     return render_template(
         "doctor.html",
         appointments=appointments,
+        booking_count=len(appointments),
         chat_history=chat_history,
         excel_path=storage_label(),
         ai_status=ai_status,
         calendar_status=calendar_status,
         patient_link=url_for("patient_form", _external=True),
+        time_labels=TIME_LABELS,
     )
 
 
