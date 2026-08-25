@@ -309,15 +309,6 @@ def read_appointments() -> list[dict[str, str]]:
     return _rows_from_workbook_bytes(read_excel_bytes())
 
 
-def slot_taken(date_str: str, time_str: str, exclude_token: str | None = None) -> bool:
-    for row in read_appointments():
-        if exclude_token and row.get("EditToken") == exclude_token:
-            continue
-        if row.get("Date") == date_str and row.get("Time") == time_str:
-            return True
-    return False
-
-
 def find_booking(token: str) -> dict[str, str] | None:
     from flask import has_request_context, session
 
@@ -455,11 +446,6 @@ def parse_booking_form(exclude_token: str | None = None) -> tuple[dict[str, str]
         return None, "Please choose 12 PM, 3 PM, or 6 PM only. · માત્ર ૧૨, ૩ અથવા ૬ વાગ્યાનો સમય પસંદ કરો."
     if not re.fullmatch(r"[0-9+\-\s]{8,15}", mobile):
         return None, "Enter a valid mobile number. · યોગ્ય મોબાઇલ નંબર લખો."
-    if slot_taken(date_str, time_str, exclude_token=exclude_token):
-        return None, (
-            "That date and time is already booked. Please choose another. · "
-            "આ તારીખ અને સમય પહેલેથી બુક થયેલ છે. બીજો સમય પસંદ કરો."
-        )
 
     return (
         {
