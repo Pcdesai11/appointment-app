@@ -426,12 +426,20 @@ tr:last-child td {
 }
 
 .time-option input {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.2rem;
+  height: 1.2rem;
   min-height: auto;
   margin: 0;
   flex-shrink: 0;
   accent-color: var(--accent);
+  border-radius: 0.2rem;
+}
+
+.time-error {
+  margin: 0.45rem 0 0;
+  color: #9b2c2c;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .time-option:has(input:checked) {

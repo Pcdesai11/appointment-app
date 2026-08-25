@@ -39,7 +39,7 @@
     <section class="panel panel-patient">
       <h2>{% if edit_mode %}Edit form · ફોર્મ સુધારો{% else %}Booking form · બુકિંગ ફોર્મ{% endif %}</h2>
       <p class="hint">* Required · જરૂરી · Time only 10 AM / 1:30 PM / 5 PM</p>
-      <form method="post" action="{{ form_action }}" class="form form-patient">
+      <form method="post" action="{{ form_action }}" class="form form-patient" id="booking-form">
         <label>
           <span class="label-stack">
             <span class="label-en">Full name of baby *</span>
@@ -80,20 +80,21 @@
               <span class="label-gu">ખતનાનો સમય</span>
             </span>
           </legend>
-          <div class="time-options">
+          <div class="time-options" id="time-options">
             {% for t in allowed_times %}
               <label class="time-option">
                 <input
-                  type="radio"
+                  type="checkbox"
                   name="time"
                   value="{{ t }}"
-                  required
+                  class="time-check"
                   {% if booking and booking.Time == t %}checked{% elif not booking and loop.first %}checked{% endif %}
                 />
                 <span>{{ time_labels[t] }}</span>
               </label>
             {% endfor %}
           </div>
+          <p class="time-error" id="time-error" hidden>Please choose one time. · કૃપા કરીને એક સમય પસંદ કરો.</p>
         </fieldset>
 
         <label>
@@ -131,5 +132,31 @@
       </form>
     </section>
   </div>
+  <script>
+    (function () {
+      const checks = Array.from(document.querySelectorAll(".time-check"));
+      const form = document.getElementById("booking-form");
+      const err = document.getElementById("time-error");
+      checks.forEach((box) => {
+        box.addEventListener("change", () => {
+          if (box.checked) {
+            checks.forEach((other) => {
+              if (other !== box) other.checked = false;
+            });
+          }
+          if (err) err.hidden = true;
+        });
+      });
+      if (form) {
+        form.addEventListener("submit", (e) => {
+          const picked = checks.some((c) => c.checked);
+          if (!picked) {
+            e.preventDefault();
+            if (err) err.hidden = false;
+          }
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
