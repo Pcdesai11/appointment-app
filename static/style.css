@@ -612,6 +612,16 @@ tr:last-child td {
   font-weight: 500;
 }
 
+.stat-chip-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.stat-chip-link:hover {
+  color: var(--accent-dark);
+}
+
 .share-box {
   margin-top: 1rem;
   padding: 0.9rem 1rem;

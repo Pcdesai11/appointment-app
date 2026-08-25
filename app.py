@@ -860,6 +860,16 @@ def doctor_password() -> str:
     return os.getenv("DOCTOR_PASSWORD", "doctor123").strip() or "doctor123"
 
 
+def google_calendar_link() -> str:
+    """Open Google Calendar; deep-link to configured calendar when possible."""
+    from urllib.parse import quote
+
+    cal_id = os.getenv("GOOGLE_CALENDAR_ID", "").strip()
+    if cal_id:
+        return f"https://calendar.google.com/calendar/u/0/r?cid={quote(cal_id)}"
+    return "https://calendar.google.com/calendar/"
+
+
 def doctor_logged_in() -> bool:
     from flask import session
 
@@ -1123,6 +1133,7 @@ def doctor_dashboard():
         excel_path=storage_label(),
         ai_status=ai_status,
         calendar_status=calendar_status,
+        calendar_link=google_calendar_link(),
         patient_link=url_for("patient_form", _external=True),
         time_labels=TIME_LABELS,
     )

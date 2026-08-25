@@ -19,6 +19,7 @@
           <p class="tagline">Manage khatna bookings, ask AI, and clear finished cases.</p>
         </div>
         <div class="doctor-header-actions">
+          <a class="btn btn-secondary btn-compact" href="{{ calendar_link }}" target="_blank" rel="noopener noreferrer">Open Google Calendar</a>
           <a class="btn btn-secondary btn-compact" href="{{ url_for('download_excel') }}">Download Excel</a>
           <a class="btn btn-ghost btn-compact" href="{{ url_for('doctor_logout') }}">Sign out</a>
         </div>
@@ -27,7 +28,9 @@
       <div class="doctor-stats">
         <div class="stat-chip"><span>{{ booking_count }}</span> bookings</div>
         <div class="stat-chip subtle">{{ ai_status }}</div>
-        <div class="stat-chip subtle">{{ calendar_status }}</div>
+        <div class="stat-chip subtle">
+          <a class="stat-chip-link" href="{{ calendar_link }}" target="_blank" rel="noopener noreferrer">{{ calendar_status }}</a>
+        </div>
       </div>
 
       <div class="share-box">
