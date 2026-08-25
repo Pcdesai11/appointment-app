@@ -28,9 +28,12 @@ Patient times are fixed: **10 AM, 1:30 PM, 5 PM** only.
 4. Open Google Calendar → Settings → share calendar with the service account email (**Make changes to events**).
 5. Copy Calendar ID (often your email, or from Calendar settings).
 6. In Vercel env vars set:
-   - `GOOGLE_SERVICE_ACCOUNT_JSON` = full JSON key (one line)
    - `GOOGLE_CALENDAR_ID` = your calendar id
    - `GOOGLE_CALENDAR_TIMEZONE` = `Asia/Kolkata`
+   - Prefer **base64** (avoids paste breakage):
+     - PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\key.json"))`
+     - Set `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` to that output
+   - Or set `GOOGLE_SERVICE_ACCOUNT_JSON` to the JSON as **one single line** (no outer quotes)
 
 When a patient submits, the booking is saved to Excel **and** added to the calendar.
 
