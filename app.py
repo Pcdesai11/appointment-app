@@ -201,9 +201,18 @@ def _blob_list(prefix: str | None = None) -> list[dict[str, Any]]:
 
 
 def _blob_download(url: str) -> bytes:
+    import time as time_mod
+    import urllib.parse
     import urllib.request
 
-    with urllib.request.urlopen(url, timeout=30) as resp:
+    # Bust CDN cache so freshly overwritten Excel is visible immediately.
+    sep = "&" if "?" in url else "?"
+    busted = f"{url}{sep}v={int(time_mod.time() * 1000)}"
+    req = urllib.request.Request(
+        busted,
+        headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read()
 
 
@@ -230,6 +239,8 @@ def _blob_upload(
             "x-allow-overwrite": "1",
             "x-add-random-suffix": "0",
             "x-content-type": content_type,
+            # Keep Excel reads fresh after each booking write.
+            "x-cache-control-max-age": "0",
         },
         method="PUT",
     )
@@ -308,13 +319,29 @@ def slot_taken(date_str: str, time_str: str, exclude_token: str | None = None) -
 
 
 def find_booking(token: str) -> dict[str, str] | None:
+    from flask import has_request_context, session
+
     token = (token or "").strip()
     if not token:
         return None
     for row in read_appointments():
         if row.get("EditToken") == token:
             return row
+    # Fallback: serverless/CDN may lag right after write; use session copy.
+    if has_request_context():
+        cached = session.get(f"booking_{token}")
+        if isinstance(cached, dict) and cached.get("EditToken") == token:
+            return {c: str(cached.get(c, "") or "") for c in COLUMNS}
     return None
+
+
+def remember_booking(booking: dict[str, str]) -> None:
+    from flask import session
+
+    token = booking.get("EditToken") or ""
+    if not token:
+        return
+    session[f"booking_{token}"] = {c: booking.get(c, "") for c in COLUMNS}
 
 
 def ensure_edit_tokens() -> list[dict[str, str]]:
@@ -352,6 +379,7 @@ def save_booking_update(token: str, existing: dict[str, str]) -> tuple[bool, str
         pass
     if not update_appointment(token, booking):
         return False, "Could not update this booking."
+    remember_booking(booking)
     return True, None
 
 
@@ -830,6 +858,7 @@ def patient_form():
             except Exception:
                 pass
             append_appointment(booking)
+            remember_booking(booking)
             return redirect(url_for("booking_confirmation", token=booking["EditToken"]))
         except Exception as exc:
             flash(f"Could not submit right now. Please try again. ({exc})", "error")
