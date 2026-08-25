@@ -490,6 +490,9 @@ STOP_WORDS = {
     "do", "i", "is", "a", "an", "of", "on", "to", "in", "at", "or", "be", "was",
     "were", "am", "pm", "o", "clock", "time", "date", "name", "reason", "which",
     "ones", "those", "these", "some", "them", "their", "has", "had", "will",
+    "how", "many", "booking", "bookings", "khatna", "patient", "patients",
+    "afternoon", "evening", "morning", "noon", "today", "tomorrow", "mobile",
+    "number", "phone", "baby", "area",
 }
 
 
@@ -634,20 +637,58 @@ def _fuzzy_contains(haystack: str, needle: str) -> bool:
     return bool(parts) and all(p in h for p in parts)
 
 
+def _human_time(value: str) -> str:
+    plain = {"12:00": "12:00 PM", "15:00": "3:00 PM", "18:00": "6:00 PM"}
+    return plain.get(value, TIME_LABELS.get(value, value or "—"))
+
+
+def _format_booking_line(row: dict[str, str]) -> str:
+    return (
+        f"{row.get('BabyName') or '—'} | {_human_time(row.get('Time', ''))} on {row.get('Date') or '—'} | "
+        f"Age {row.get('Age') or '—'}, Weight {row.get('Weight') or '—'} | "
+        f"{row.get('Area') or '—'} | Mobile {row.get('Mobile') or '—'}"
+        + (f" | {row.get('Email')}" if row.get("Email") else "")
+    )
+
+
+def _doctor_summary(question: str, matched: list[dict[str, str]], notes: list[str] | None = None) -> str:
+    q = question.strip()
+    if not matched:
+        return f'No bookings matched "{q}". Try another time, date, baby name, area, or mobile.'
+
+    lines = [f'Found {len(matched)} booking(s) for "{q}":']
+    for row in matched[:12]:
+        lines.append(f"• {_format_booking_line(row)}")
+    if len(matched) > 12:
+        lines.append(f"• …and {len(matched) - 12} more.")
+    if notes:
+        lines.append("Filters used: " + "; ".join(notes) + ".")
+    return "\n".join(lines)
+
+
 def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], str]:
     q = question.strip().lower()
     if not rows:
         return [], "No appointments saved yet."
 
-    # Broad "show everything" style questions
     if re.search(
         r"\b(all|everything|everyone|entire|full\s+list|show\s+me\s+all|list\s+all)\b",
         q,
-    ) and not re.search(r"\b(\d{1,2}|today|tomorrow|named|about)\b", q):
-        return rows, f"Showing all {len(rows)} appointment(s)."
+    ) and not re.search(r"\b(\d{1,2}|today|tomorrow|named|about|afternoon|evening|morning)\b", q):
+        return rows, _doctor_summary(question, rows)
 
     filtered = list(rows)
     notes: list[str] = []
+
+    if re.search(r"\b(afternoon|noon)\b", q) and not _extract_time_queries(q):
+        filtered = [r for r in filtered if r.get("Time") in {"12:00", "15:00"}]
+        notes.append("afternoon slots (12 PM / 3 PM)")
+    elif re.search(r"\bevening\b", q) and not _extract_time_queries(q):
+        filtered = [r for r in filtered if r.get("Time") == "18:00"]
+        notes.append("evening slot (6 PM)")
+    elif re.search(r"\bmorning\b", q) and not _extract_time_queries(q):
+        filtered = [r for r in filtered if r.get("Time") == "12:00"]
+        notes.append("noon slot (12 PM)")
 
     time_queries = _extract_time_queries(q)
     if time_queries:
@@ -670,29 +711,32 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
                 label += " (am/pm)"
             else:
                 label += " " + t.strftime("%p")
-            if hour_only:
-                label += " any minute"
             pretty_bits.append(label)
-        notes.append("time ~ " + ", ".join(pretty_bits))
+        notes.append("time " + ", ".join(pretty_bits))
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     if re.search(r"\btoday\b", q):
         filtered = [r for r in filtered if _row_date(r.get("Date", "")) == today]
-        notes.append("date = today")
+        notes.append("today")
     elif re.search(r"\btomorrow\b", q):
         tomorrow = today + timedelta(days=1)
         filtered = [r for r in filtered if _row_date(r.get("Date", "")) == tomorrow]
-        notes.append("date = tomorrow")
+        notes.append("tomorrow")
     else:
         date_match = re.search(r"(\d{4}-\d{2}-\d{2})", q)
         if date_match:
             target = datetime.strptime(date_match.group(1), "%Y-%m-%d")
             filtered = [r for r in filtered if _row_date(r.get("Date", "")) == target]
-            notes.append(f"date = {date_match.group(1)}")
+            notes.append(f"date {date_match.group(1)}")
 
-    # Names: "named X", "for X", "with X", or any capitalized-looking token handled via words below
+    mobile_match = re.search(r"(\d{8,15})", q)
+    if mobile_match:
+        digits = re.sub(r"\D", "", mobile_match.group(1))
+        filtered = [r for r in filtered if digits in re.sub(r"\D", "", r.get("Mobile", ""))]
+        notes.append(f"mobile {digits}")
+
     name_match = re.search(
-        r"(?:for|named|name(?:\s+is)?|with|by)\s+([a-zA-Z][a-zA-Z\s'-]{0,40})",
+        r"(?:for|named|name(?:\s+is)?|with|by|baby)\s+([a-zA-Z][a-zA-Z\s'-]{0,40})",
         q,
     )
     if name_match:
@@ -703,9 +747,9 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
         )[0].strip()
         if name and name not in STOP_WORDS:
             filtered = [r for r in filtered if _fuzzy_contains(r.get("BabyName", ""), name)]
-            notes.append(f"name ~ '{name}'")
+            notes.append(f'baby name "{name}"')
 
-    about_match = re.search(r"\b(?:about|regarding|area|from|for)\s+([a-zA-Z0-9][\w\s'-]{0,40})", q)
+    about_match = re.search(r"\b(?:about|regarding|area|from|in)\s+([a-zA-Z0-9][\w\s'-]{0,40})", q)
     if about_match:
         keyword = about_match.group(1).strip()
         keyword = re.split(r"\b(?:at|on|named|with|tomorrow|today)\b", keyword)[0].strip()
@@ -714,15 +758,14 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
             name_hits = [r for r in filtered if _fuzzy_contains(r.get("BabyName", ""), keyword)]
             if area_hits:
                 filtered = area_hits
-                notes.append(f"area ~ '{keyword}'")
+                notes.append(f'area "{keyword}"')
             elif name_hits:
                 filtered = name_hits
-                notes.append(f"name ~ '{keyword}'")
-            elif "about" in q or "area" in q or "regarding" in q:
+                notes.append(f'baby name "{keyword}"')
+            elif "about" in q or "area" in q or "regarding" in q or " in " in f" {q} ":
                 filtered = area_hits
-                notes.append(f"area ~ '{keyword}'")
+                notes.append(f'area "{keyword}"')
 
-    # If nothing specific matched yet, soft-search leftover words across all columns
     if not notes:
         words = [w for w in re.findall(r"[a-zA-Z0-9]{2,}", q) if w not in STOP_WORDS]
         words = [w for w in words if not w.isdigit()]
@@ -737,53 +780,60 @@ def filter_with_rules(question: str, rows: list[dict[str, str]]) -> tuple[list[d
             hits = [r for r in filtered if row_hits(r)]
             if hits:
                 filtered = hits
-                notes.append(f"text ~ {', '.join(words)}")
+                notes.append("text " + ", ".join(words))
             else:
-                return (
-                    rows,
-                    f"Couldn't tightly match \"{question.strip()}\", so showing all {len(rows)} appointment(s). "
-                    f"Try \"at 6\", \"today\", or a name.",
-                )
+                return [], _doctor_summary(question, [])
 
-    if notes:
-        summary = "Matched " + "; ".join(notes) + f". Found {len(filtered)} row(s)."
-    else:
-        summary = f"Showing all {len(filtered)} appointment(s)."
-
-    # Extra leniency: if filters wiped everything, fall back to all with a hint
     if notes and not filtered:
-        return (
-            rows,
-            f"No exact matches for \"{question.strip()}\". Showing all {len(rows)} appointment(s) instead.",
-        )
+        return [], _doctor_summary(question, [])
 
-    return filtered, summary
+    return filtered, _doctor_summary(question, filtered, notes)
 
 
 def ask_free_ai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], str] | None:
-    """
-    Free AI first (Groq / Llama), optional OpenAI, else None -> built-in filter.
-    Get a free Groq key at https://console.groq.com
-    """
     if not rows:
         return None
 
-    prompt = (
-        "You help a doctor review khatna appointment bookings. "
-        "Return ONLY a JSON object with keys: "
-        '"indices" (array of 0-based row indexes that match the question) and '
-        '"summary" (short plain-English answer for the doctor). '
-        "Be helpful and inclusive — if the question is vague, return likely matches. "
-        "If none match, indices should be [].\n\n"
-        f"Question: {question}\n\nRows:\n{rows}"
+    today = datetime.now().strftime("%Y-%m-%d")
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    catalog = []
+    for i, row in enumerate(rows):
+        catalog.append({
+            "index": i,
+            "baby_name": row.get("BabyName", ""),
+            "age": row.get("Age", ""),
+            "weight": row.get("Weight", ""),
+            "date": row.get("Date", ""),
+            "time": row.get("Time", ""),
+            "time_label": _human_time(row.get("Time", "")),
+            "area": row.get("Area", ""),
+            "mobile": row.get("Mobile", ""),
+            "email": row.get("Email", ""),
+        })
+
+    system = (
+        "You are a careful clinic assistant for a doctor managing khatna (circumcision) bookings. "
+        "Available appointment times are only 12:00 (12 PM), 15:00 (3 PM), and 18:00 (6 PM). "
+        "Interpret casual language: 'at 6' / '6pm' / 'evening' => 18:00; "
+        "'at 3' / '3pm' may mean 15:00; 'noon' / '12' / 'afternoon' may mean 12:00 or 15:00. "
+        "Use the provided today/tomorrow dates. "
+        "Return ONLY valid JSON with keys: indices (matching catalog index values) and summary. "
+        "In summary: say how many matches, then list each with baby name, date, time, area, and mobile. "
+        "If nothing matches, indices=[] and suggest what to try next. "
+        "Be precise. Do not invent bookings."
+    )
+    user = (
+        f"Today's date: {today}\n"
+        f"Tomorrow's date: {tomorrow}\n"
+        f"Doctor question: {question}\n\n"
+        f"Booking catalog as JSON:\n{json.dumps(catalog, ensure_ascii=False)}"
     )
 
     providers: list[tuple[str, str, str]] = []
     groq_key = os.getenv("GROQ_API_KEY", "").strip()
     if groq_key:
-        providers.append(
-            (groq_key, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile")
-        )
+        providers.append((groq_key, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"))
+        providers.append((groq_key, "https://api.groq.com/openai/v1", "llama-3.1-8b-instant"))
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     if openai_key:
         providers.append((openai_key, "https://api.openai.com/v1", "gpt-4o-mini"))
@@ -795,18 +845,29 @@ def ask_free_ai(question: str, rows: list[dict[str, str]]) -> tuple[list[dict[st
             client = OpenAI(api_key=api_key, base_url=base_url)
             response = client.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0.1,
                 response_format={"type": "json_object"},
             )
             payload = json.loads(response.choices[0].message.content or "{}")
             indices = payload.get("indices") or []
-            summary = payload.get("summary") or "Here are the matching appointments."
+            summary = str(payload.get("summary") or "").strip()
             valid = [i for i in indices if isinstance(i, int) and 0 <= i < len(rows)]
-            return [rows[i] for i in valid], str(summary)
+            matched = [rows[i] for i in valid]
+            if not summary:
+                summary = _doctor_summary(question, matched)
+            elif matched and summary.count("•") < min(2, len(matched)):
+                extra = "\n".join(f"• {_format_booking_line(r)}" for r in matched)
+                if extra not in summary:
+                    summary = summary.rstrip() + "\n" + extra
+            return matched, summary
         except Exception:
             continue
     return None
+
 
 
 def doctor_password() -> str:

@@ -53,7 +53,7 @@
       <section class="panel panel-ask">
         <div class="panel-head">
           <h2>Ask AI</h2>
-          <p class="hint">Ask follow-up questions anytime. Clear the chat when you’re done.</p>
+          <p class="hint">Try “at 6”, “today”, “evening”, a baby name, area, or mobile. Clear the chat when you’re done.</p>
         </div>
 
         {% if chat_history %}
@@ -61,7 +61,7 @@
             {% for turn in chat_history %}
               <article class="chat-turn">
                 <p class="chat-q"><span>You</span> {{ turn.question }}</p>
-                <p class="ask-summary">{{ turn.summary }}</p>
+                <div class="ask-summary">{{ turn.summary }}</div>
                 {% if turn.results %}
                   <div class="booking-cards compact">
                     {% for row in turn.results %}

@@ -294,7 +294,8 @@ textarea:focus {
   background: var(--warn-bg);
   border: 1px solid #f0d7b5;
   font-size: 0.95rem;
-  line-height: 1.4;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .table-wrap {
