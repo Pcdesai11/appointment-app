@@ -865,6 +865,13 @@ def google_calendar_link() -> str:
     from urllib.parse import quote
 
     cal_id = os.getenv("GOOGLE_CALENDAR_ID", "").strip()
+    if not cal_id:
+        try:
+            from google_calendar import resolved_calendar_id
+
+            cal_id = resolved_calendar_id()
+        except Exception:
+            cal_id = ""
     if cal_id:
         return f"https://calendar.google.com/calendar/u/0/r?cid={quote(cal_id)}"
     return "https://calendar.google.com/calendar/"
@@ -1091,6 +1098,28 @@ def doctor_dashboard():
             session["doctor_chat"] = []
             chat_history = []
             flash("Chat cleared. Ask a new question anytime.", "success")
+            return redirect(url_for("doctor_dashboard"))
+
+        if action == "share_calendar":
+            emails_raw = request.form.get("share_emails", "")
+            emails = [part.strip() for part in re.split(r"[,\s;]+", emails_raw) if part.strip()]
+            try:
+                from google_calendar import share_calendar_with_emails
+
+                ok, errors = share_calendar_with_emails(emails, role="reader")
+                if ok:
+                    flash(
+                        "Shared calendar with: "
+                        + ", ".join(ok)
+                        + ". They should get an email / see it under Other calendars.",
+                        "success",
+                    )
+                for err in errors:
+                    flash(err, "error")
+                if not ok and not errors:
+                    flash("Could not share calendar.", "error")
+            except Exception as exc:
+                flash(f"Could not share calendar: {exc}", "error")
             return redirect(url_for("doctor_dashboard"))
 
         if action == "ask":

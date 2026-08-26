@@ -40,6 +40,23 @@
           <button type="button" class="btn btn-secondary btn-compact" id="copy-link">Copy</button>
         </div>
       </div>
+
+      <div class="share-box">
+        <p class="share-label">Share booking calendar (no clinic login needed)</p>
+        <form method="post" class="share-row calendar-share-form">
+          <input
+            type="text"
+            name="share_emails"
+            value="zaidanclinicsurat@gmail.com, pcdesai02@gmail.com"
+            placeholder="email@gmail.com"
+            autocomplete="email"
+          />
+          <button type="submit" class="btn btn-secondary btn-compact" name="action" value="share_calendar">
+            Share calendar
+          </button>
+        </form>
+        <p class="hint" style="margin:0.55rem 0 0">Invites those emails to view the service-account booking calendar.</p>
+      </div>
     </header>
 
     {% with messages = get_flashed_messages(with_categories=true) %}

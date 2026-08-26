@@ -12,12 +12,17 @@ from typing import Any
 
 def calendar_configured() -> bool:
     return bool(
-        (
-            os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-            or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64", "").strip()
-        )
-        and os.getenv("GOOGLE_CALENDAR_ID", "").strip()
+        os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64", "").strip()
     )
+
+
+def resolved_calendar_id() -> str:
+    """Prefer GOOGLE_CALENDAR_ID; otherwise use the service account's own calendar."""
+    explicit = os.getenv("GOOGLE_CALENDAR_ID", "").strip().strip('"').strip("'")
+    if explicit:
+        return explicit
+    return str(_service_account_info().get("client_email", "")).strip()
 
 
 def _raw_service_account_text() -> str:
@@ -113,7 +118,9 @@ def calendar_status_message() -> str:
     if not calendar_configured():
         return "Google Calendar not connected yet"
     try:
-        calendar_id = os.environ["GOOGLE_CALENDAR_ID"].strip().strip('"').strip("'")
+        calendar_id = resolved_calendar_id()
+        if not calendar_id:
+            return "Calendar key problem — missing client_email"
         service = _service()
         service.calendars().get(calendarId=calendar_id).execute()
         info = _service_account_info()
@@ -127,14 +134,63 @@ def calendar_status_message() -> str:
         text = str(exc).lower()
         status = getattr(getattr(exc, "resp", None), "status", None)
         if status == 404 or "notfound" in text or "404" in text:
-            return "Calendar ID not found — check GOOGLE_CALENDAR_ID"
+            return "Calendar ID not found — set GOOGLE_CALENDAR_ID to the service account email"
         if status == 403 or "forbidden" in text or "403" in text:
             try:
                 email = _service_account_info().get("client_email", "service-account")
             except Exception:
                 email = "service-account"
-            return f"Share calendar with {email} (Make changes to events)"
+            return f"Calendar access blocked for {email}"
         return f"Calendar setup error — {type(exc).__name__}"
+
+
+def share_calendar_with_emails(
+    emails: list[str],
+    role: str = "reader",
+) -> tuple[list[str], list[str]]:
+    """
+    Share the service-account calendar with people (no clinic login needed).
+    Returns (ok_emails, error_messages).
+    """
+    if not calendar_configured():
+        return [], ["Google Calendar is not configured yet."]
+
+    calendar_id = resolved_calendar_id()
+    if not calendar_id:
+        return [], ["Could not resolve calendar id / service account email."]
+
+    cleaned: list[str] = []
+    for raw in emails:
+        email = (raw or "").strip().lower()
+        if email and email not in cleaned and "@" in email:
+            cleaned.append(email)
+    if not cleaned:
+        return [], ["Enter at least one email address."]
+
+    service = _service()
+    ok: list[str] = []
+    errors: list[str] = []
+    for email in cleaned:
+        body = {
+            "role": role,
+            "scope": {"type": "user", "value": email},
+        }
+        try:
+            service.acl().insert(
+                calendarId=calendar_id,
+                body=body,
+                sendNotifications=True,
+            ).execute()
+            ok.append(email)
+        except Exception as exc:
+            text = str(exc).lower()
+            status = getattr(getattr(exc, "resp", None), "status", None)
+            # Already shared is fine.
+            if status == 409 or "already exists" in text or "duplicate" in text:
+                ok.append(email)
+            else:
+                errors.append(f"{email}: {exc}")
+    return ok, errors
 
 
 def _event_body(booking: dict[str, str]) -> dict[str, Any]:
@@ -162,7 +218,7 @@ def create_khatna_event(booking: dict[str, str]) -> str | None:
     """Create a calendar event. Returns Google event id (or None)."""
     if not calendar_configured():
         return None
-    calendar_id = os.environ["GOOGLE_CALENDAR_ID"].strip().strip('"').strip("'")
+    calendar_id = resolved_calendar_id()
     service = _service()
     event = (
         service.events()
@@ -176,7 +232,7 @@ def update_khatna_event(event_id: str, booking: dict[str, str]) -> str | None:
     """Update an existing calendar event. Returns event id."""
     if not calendar_configured() or not event_id:
         return create_khatna_event(booking)
-    calendar_id = os.environ["GOOGLE_CALENDAR_ID"].strip().strip('"').strip("'")
+    calendar_id = resolved_calendar_id()
     service = _service()
     try:
         event = (
@@ -192,7 +248,7 @@ def update_khatna_event(event_id: str, booking: dict[str, str]) -> str | None:
 def delete_khatna_event(event_id: str) -> None:
     if not calendar_configured() or not event_id:
         return
-    calendar_id = os.environ["GOOGLE_CALENDAR_ID"].strip().strip('"').strip("'")
+    calendar_id = resolved_calendar_id()
     service = _service()
     try:
         service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
