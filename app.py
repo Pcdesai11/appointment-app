@@ -920,13 +920,7 @@ def patient_form():
                 if event_id:
                     booking["CalendarEventId"] = event_id
             except Exception as cal_exc:
-                # Booking still saves; doctor desk shows "Not on calendar".
                 print(f"Google Calendar create failed: {cal_exc}")
-                booking["CalendarEventId"] = ""
-                # Keep a short note for confirmation page via session.
-                from flask import session as _session
-
-                _session["calendar_sync_error"] = str(cal_exc)[:300]
             append_appointment(booking)
             remember_booking(booking)
             return redirect(url_for("booking_confirmation", token=booking["EditToken"]))
@@ -1049,30 +1043,6 @@ def doctor_clear_booking(token: str):
     return redirect(url_for("doctor_dashboard"))
 
 
-@app.route("/doctor/sync-calendar/<token>", methods=["POST"])
-@require_doctor
-def doctor_sync_calendar(token: str):
-    booking = find_booking(token)
-    if not booking:
-        flash("Booking not found.", "error")
-        return redirect(url_for("doctor_dashboard"))
-    try:
-        from google_calendar import create_khatna_event
-
-        event_id = create_khatna_event(booking)
-        if not event_id:
-            flash("Calendar not configured.", "error")
-            return redirect(url_for("doctor_dashboard"))
-        booking["CalendarEventId"] = event_id
-        if not update_appointment(token, booking):
-            flash("Event created, but could not save calendar id.", "error")
-        else:
-            flash(f"Added {booking.get('BabyName') or 'booking'} to Google Calendar.", "success")
-    except Exception as exc:
-        flash(f"Could not sync to calendar: {exc}", "error")
-    return redirect(url_for("doctor_dashboard"))
-
-
 @app.route("/doctor/login", methods=["GET", "POST"])
 def doctor_login():
     from flask import session
@@ -1129,17 +1099,6 @@ def doctor_dashboard():
             flash("Chat cleared. Ask a new question anytime.", "success")
             return redirect(url_for("doctor_dashboard"))
 
-        if action == "test_calendar":
-            try:
-                from google_calendar import test_calendar_write
-
-                result = test_calendar_write()
-                kind = "success" if result.lower().startswith("success") else "error"
-                flash(result, kind)
-            except Exception as exc:
-                flash(f"Calendar test failed: {exc}", "error")
-            return redirect(url_for("doctor_dashboard"))
-
         if action == "ask":
             question = request.form.get("question", "").strip()
             rows = read_appointments()
@@ -1169,12 +1128,10 @@ def doctor_dashboard():
         return (row.get("Date") or "", row.get("Time") or "", row.get("Timestamp") or "")
 
     appointments = sorted(appointments, key=sort_key)
-    calendar_synced_count = sum(1 for row in appointments if row.get("CalendarEventId"))
     return render_template(
         "doctor.html",
         appointments=appointments,
         booking_count=len(appointments),
-        calendar_synced_count=calendar_synced_count,
         chat_history=chat_history,
         excel_path=storage_label(),
         ai_status=ai_status,

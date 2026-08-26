@@ -19,11 +19,6 @@
           <p class="tagline">Manage khatna bookings, ask AI, and clear finished cases.</p>
         </div>
         <div class="doctor-header-actions">
-          <form method="post" style="display:inline;margin:0">
-            <button type="submit" class="btn btn-secondary btn-compact" name="action" value="test_calendar">
-              Test calendar
-            </button>
-          </form>
           <a class="btn btn-secondary btn-compact" href="{{ calendar_link }}" target="_blank" rel="noopener noreferrer">Open Google Calendar</a>
           <a class="btn btn-secondary btn-compact" href="{{ url_for('download_excel') }}">Download Excel</a>
           <a class="btn btn-ghost btn-compact" href="{{ url_for('doctor_logout') }}">Sign out</a>
@@ -33,9 +28,7 @@
       <div class="doctor-stats">
         <div class="stat-chip"><span>{{ booking_count }}</span> bookings</div>
         <div class="stat-chip subtle">{{ ai_status }}</div>
-        <div class="stat-chip subtle">
-          <a class="stat-chip-link" href="{{ calendar_link }}" target="_blank" rel="noopener noreferrer">{{ calendar_status }}</a>
-        </div>
+        <div class="stat-chip subtle">{{ calendar_status }}</div>
       </div>
 
       <div class="share-box">
@@ -129,7 +122,6 @@
           <li>Slots are fixed: 10 AM, 1:30 PM, 5 PM.</li>
           <li><strong>Edit</strong> to change a booking.</li>
           <li><strong>Clear</strong> after the operation is done.</li>
-          <li>If calendar status mentions JSON: re-add the key in Vercel as <strong>one line</strong> or BASE64, then redeploy.</li>
         </ul>
       </aside>
     </main>
@@ -138,7 +130,7 @@
       <div class="panel-head row-head">
         <div>
           <h2>All bookings</h2>
-          <p class="hint">Sorted by date and time. {{ calendar_synced_count }} of {{ booking_count }} on Google Calendar. Clear a case once finished.</p>
+          <p class="hint">Sorted by date and time. Clear a case once finished.</p>
         </div>
       </div>
 
@@ -151,13 +143,7 @@
                   <h3>{{ row.BabyName or '—' }}</h3>
                   <span class="time-pill">{{ time_labels.get(row.Time, row.Time) }}</span>
                 </div>
-                <p class="booking-date">{{ row.Date }}
-                  {% if row.CalendarEventId %}
-                    <span class="cal-badge ok">On calendar</span>
-                  {% else %}
-                    <span class="cal-badge miss">Not on calendar</span>
-                  {% endif %}
-                </p>
+                <p class="booking-date">{{ row.Date }}</p>
                 <div class="booking-meta">
                   <span>Age {{ row.Age or '—' }}</span>
                   <span>Weight {{ row.Weight or '—' }}</span>
@@ -170,11 +156,6 @@
               </div>
               {% if row.EditToken %}
                 <div class="booking-actions">
-                  {% if not row.CalendarEventId %}
-                    <form method="post" action="{{ url_for('doctor_sync_calendar', token=row.EditToken) }}">
-                      <button type="submit" class="edit-link">Add to calendar</button>
-                    </form>
-                  {% endif %}
                   <a class="edit-link" href="{{ url_for('doctor_edit_booking', token=row.EditToken) }}">Edit</a>
                   <form method="post" action="{{ url_for('doctor_clear_booking', token=row.EditToken) }}" onsubmit="return confirm('Clear booking for {{ row.BabyName }}? This removes it from the list and calendar.');">
                     <button type="submit" class="clear-link">Clear done</button>

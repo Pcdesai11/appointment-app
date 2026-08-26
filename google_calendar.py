@@ -114,42 +114,18 @@ def _service():
 
 
 def calendar_status_message() -> str:
-    """Verify env vars AND that the app can actually reach the calendar."""
+    """Simple production status for the doctor desk."""
     if not calendar_configured():
-        return "Google Calendar not connected yet"
+        return "Google Calendar not connected"
     try:
         calendar_id = resolved_calendar_id()
         if not calendar_id:
-            return "Calendar key problem — missing client_email"
+            return "Google Calendar not connected"
         service = _service()
-        meta = service.calendars().get(calendarId=calendar_id).execute()
-        summary = meta.get("summary") or calendar_id
-        return f"Connected — writing to {calendar_id} ({summary})"
-    except json.JSONDecodeError:
-        return "Calendar JSON key invalid — re-paste GOOGLE_SERVICE_ACCOUNT_JSON as one line"
-    except ValueError as exc:
-        return f"Calendar key problem — {exc}"
-    except Exception as exc:
-        text = str(exc).lower()
-        status = getattr(getattr(exc, "resp", None), "status", None)
-        calendar_id = ""
-        try:
-            calendar_id = resolved_calendar_id()
-        except Exception:
-            pass
-        if status == 404 or "notfound" in text or "404" in text:
-            return f"Calendar ID not found ({calendar_id or 'empty'}) — set GOOGLE_CALENDAR_ID to pcdesai02@gmail.com"
-        if status == 403 or "forbidden" in text or "403" in text:
-            sa = ""
-            try:
-                sa = str(_service_account_info().get("client_email", ""))
-            except Exception:
-                sa = "service-account"
-            return (
-                f"No write access to {calendar_id or 'calendar'}. "
-                f"Share that calendar with {sa} as Make changes to events"
-            )
-        return f"Calendar setup error — {type(exc).__name__}: {exc}"
+        service.calendars().get(calendarId=calendar_id).execute()
+        return "Google Calendar connected"
+    except Exception:
+        return "Google Calendar not connected"
 
 
 # India Standard Time is always UTC+05:30 (no DST). Avoid zoneinfo/tzdata on Vercel.
@@ -188,58 +164,6 @@ def _as_google_time(dt: datetime) -> dict[str, str]:
     return {"dateTime": dt.isoformat(), "timeZone": tz_name}
 
 
-def test_calendar_write() -> str:
-    """Insert then delete a short test event. Returns a human status string."""
-    if not calendar_configured():
-        return "Google Calendar is not configured."
-    calendar_id = resolved_calendar_id()
-    service = _service()
-    tz_name = _calendar_timezone_name()
-    start = datetime.now(_IST).replace(microsecond=0) + timedelta(minutes=5)
-    end = start + timedelta(minutes=15)
-    body = {
-        "summary": "Khatna app test (safe to delete)",
-        "description": "Temporary test from doctor desk",
-        "start": _as_google_time(start),
-        "end": _as_google_time(end),
-    }
-    try:
-        event = (
-            service.events()
-            .insert(calendarId=calendar_id, body=body)
-            .execute()
-        )
-        event_id = event.get("id")
-        if event_id:
-            try:
-                service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
-            except Exception:
-                pass
-        return (
-            f"Success — can write to {calendar_id} (timezone {tz_name}). "
-            "New patient bookings should appear there."
-        )
-    except Exception as exc:
-        status = getattr(getattr(exc, "resp", None), "status", None)
-        sa = ""
-        try:
-            sa = str(_service_account_info().get("client_email", ""))
-        except Exception:
-            sa = "service-account"
-        if status == 403:
-            return (
-                f"Write blocked for {calendar_id}. "
-                f"In Google Calendar (pcdesai02), share the calendar with {sa} "
-                "using permission Make changes to events, then try again."
-            )
-        if status == 404:
-            return (
-                f"Calendar not found: {calendar_id}. "
-                "Set GOOGLE_CALENDAR_ID=pcdesai02@gmail.com in Vercel and redeploy."
-            )
-        return f"Write test failed for {calendar_id}: {exc}"
-
-
 def _event_body(booking: dict[str, str]) -> dict[str, Any]:
     start = datetime.strptime(
         f"{booking['Date']} {booking['Time']}", "%Y-%m-%d %H:%M"
@@ -252,7 +176,6 @@ def _event_body(booking: dict[str, str]) -> dict[str, Any]:
         f"Area: {booking.get('Area', '')}\n"
         f"Mobile: {booking.get('Mobile', '')}\n"
         f"Email: {booking.get('Email', '') or '—'}\n"
-        f"Edit token: {booking.get('EditToken', '')}\n"
     )
     return {
         "summary": f"Khatna — {booking.get('BabyName', 'Baby')}",
