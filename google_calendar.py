@@ -152,20 +152,58 @@ def calendar_status_message() -> str:
         return f"Calendar setup error — {type(exc).__name__}: {exc}"
 
 
+def _calendar_timezone_name() -> str:
+    """Return a valid IANA timezone; fall back to Asia/Kolkata."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    raw = os.getenv("GOOGLE_CALENDAR_TIMEZONE", "Asia/Kolkata") or "Asia/Kolkata"
+    raw = raw.strip().strip('"').strip("'")
+    # Common mistakes people type in Vercel
+    aliases = {
+        "ist": "Asia/Kolkata",
+        "india": "Asia/Kolkata",
+        "kolkata": "Asia/Kolkata",
+        "asia/calcutta": "Asia/Kolkata",
+        "calcutta": "Asia/Kolkata",
+        "in": "Asia/Kolkata",
+    }
+    candidate = aliases.get(raw.lower(), raw) or "Asia/Kolkata"
+    try:
+        ZoneInfo(candidate)
+        return candidate
+    except ZoneInfoNotFoundError:
+        return "Asia/Kolkata"
+
+
+def _as_google_time(dt: datetime) -> dict[str, str]:
+    """Build Google Calendar start/end with a reliable timezone."""
+    from zoneinfo import ZoneInfo
+
+    tz_name = _calendar_timezone_name()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo(tz_name))
+    else:
+        dt = dt.astimezone(ZoneInfo(tz_name))
+    # Include offset in dateTime; also send timeZone for clarity.
+    return {"dateTime": dt.isoformat(), "timeZone": tz_name}
+
+
 def test_calendar_write() -> str:
     """Insert then delete a short test event. Returns a human status string."""
     if not calendar_configured():
         return "Google Calendar is not configured."
     calendar_id = resolved_calendar_id()
     service = _service()
-    tz = os.getenv("GOOGLE_CALENDAR_TIMEZONE", "Asia/Kolkata").strip() or "Asia/Kolkata"
-    start = datetime.now().replace(microsecond=0) + timedelta(minutes=5)
+    from zoneinfo import ZoneInfo
+
+    tz_name = _calendar_timezone_name()
+    start = datetime.now(ZoneInfo(tz_name)).replace(microsecond=0) + timedelta(minutes=5)
     end = start + timedelta(minutes=15)
     body = {
         "summary": "Khatna app test (safe to delete)",
         "description": "Temporary test from doctor desk",
-        "start": {"dateTime": start.isoformat(), "timeZone": tz},
-        "end": {"dateTime": end.isoformat(), "timeZone": tz},
+        "start": _as_google_time(start),
+        "end": _as_google_time(end),
     }
     try:
         event = (
@@ -180,9 +218,8 @@ def test_calendar_write() -> str:
             except Exception:
                 pass
         return (
-            f"Success — can write to {calendar_id}. "
-            "New patient bookings should appear there. "
-            "If you still see Not on calendar, submit a new booking after this test."
+            f"Success — can write to {calendar_id} (timezone {tz_name}). "
+            "New patient bookings should appear there."
         )
     except Exception as exc:
         status = getattr(getattr(exc, "resp", None), "status", None)
@@ -206,8 +243,12 @@ def test_calendar_write() -> str:
 
 
 def _event_body(booking: dict[str, str]) -> dict[str, Any]:
-    tz = os.getenv("GOOGLE_CALENDAR_TIMEZONE", "Asia/Kolkata").strip() or "Asia/Kolkata"
-    start = datetime.strptime(f"{booking['Date']} {booking['Time']}", "%Y-%m-%d %H:%M")
+    from zoneinfo import ZoneInfo
+
+    tz_name = _calendar_timezone_name()
+    start = datetime.strptime(
+        f"{booking['Date']} {booking['Time']}", "%Y-%m-%d %H:%M"
+    ).replace(tzinfo=ZoneInfo(tz_name))
     end = start + timedelta(hours=1)
     description = (
         f"Baby: {booking.get('BabyName', '')}\n"
@@ -221,8 +262,8 @@ def _event_body(booking: dict[str, str]) -> dict[str, Any]:
     return {
         "summary": f"Khatna — {booking.get('BabyName', 'Baby')}",
         "description": description,
-        "start": {"dateTime": start.isoformat(), "timeZone": tz},
-        "end": {"dateTime": end.isoformat(), "timeZone": tz},
+        "start": _as_google_time(start),
+        "end": _as_google_time(end),
     }
 
 
