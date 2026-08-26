@@ -19,6 +19,11 @@
           <p class="tagline">Manage khatna bookings, ask AI, and clear finished cases.</p>
         </div>
         <div class="doctor-header-actions">
+          <form method="post" style="display:inline;margin:0">
+            <button type="submit" class="btn btn-secondary btn-compact" name="action" value="test_calendar">
+              Test calendar
+            </button>
+          </form>
           <a class="btn btn-secondary btn-compact" href="{{ calendar_link }}" target="_blank" rel="noopener noreferrer">Open Google Calendar</a>
           <a class="btn btn-secondary btn-compact" href="{{ url_for('download_excel') }}">Download Excel</a>
           <a class="btn btn-ghost btn-compact" href="{{ url_for('doctor_logout') }}">Sign out</a>

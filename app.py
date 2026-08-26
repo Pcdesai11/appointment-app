@@ -922,6 +922,11 @@ def patient_form():
             except Exception as cal_exc:
                 # Booking still saves; doctor desk shows "Not on calendar".
                 print(f"Google Calendar create failed: {cal_exc}")
+                booking["CalendarEventId"] = ""
+                # Keep a short note for confirmation page via session.
+                from flask import session as _session
+
+                _session["calendar_sync_error"] = str(cal_exc)[:300]
             append_appointment(booking)
             remember_booking(booking)
             return redirect(url_for("booking_confirmation", token=booking["EditToken"]))
@@ -1098,6 +1103,17 @@ def doctor_dashboard():
             session["doctor_chat"] = []
             chat_history = []
             flash("Chat cleared. Ask a new question anytime.", "success")
+            return redirect(url_for("doctor_dashboard"))
+
+        if action == "test_calendar":
+            try:
+                from google_calendar import test_calendar_write
+
+                result = test_calendar_write()
+                kind = "success" if result.lower().startswith("success") else "error"
+                flash(result, kind)
+            except Exception as exc:
+                flash(f"Calendar test failed: {exc}", "error")
             return redirect(url_for("doctor_dashboard"))
 
         if action == "ask":
