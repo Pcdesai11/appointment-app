@@ -664,12 +664,6 @@ tr:last-child td {
   word-break: break-all;
 }
 
-.calendar-share-form input[type="text"] {
-  flex: 1 1 220px;
-  min-height: 2.4rem;
-  margin: 0;
-}
-
 .panel-head .hint {
   margin-bottom: 0.75rem;
 }

@@ -144,55 +144,6 @@ def calendar_status_message() -> str:
         return f"Calendar setup error — {type(exc).__name__}"
 
 
-def share_calendar_with_emails(
-    emails: list[str],
-    role: str = "reader",
-) -> tuple[list[str], list[str]]:
-    """
-    Share the service-account calendar with people (no clinic login needed).
-    Returns (ok_emails, error_messages).
-    """
-    if not calendar_configured():
-        return [], ["Google Calendar is not configured yet."]
-
-    calendar_id = resolved_calendar_id()
-    if not calendar_id:
-        return [], ["Could not resolve calendar id / service account email."]
-
-    cleaned: list[str] = []
-    for raw in emails:
-        email = (raw or "").strip().lower()
-        if email and email not in cleaned and "@" in email:
-            cleaned.append(email)
-    if not cleaned:
-        return [], ["Enter at least one email address."]
-
-    service = _service()
-    ok: list[str] = []
-    errors: list[str] = []
-    for email in cleaned:
-        body = {
-            "role": role,
-            "scope": {"type": "user", "value": email},
-        }
-        try:
-            service.acl().insert(
-                calendarId=calendar_id,
-                body=body,
-                sendNotifications=True,
-            ).execute()
-            ok.append(email)
-        except Exception as exc:
-            text = str(exc).lower()
-            status = getattr(getattr(exc, "resp", None), "status", None)
-            # Already shared is fine.
-            if status == 409 or "already exists" in text or "duplicate" in text:
-                ok.append(email)
-            else:
-                errors.append(f"{email}: {exc}")
-    return ok, errors
-
-
 def _event_body(booking: dict[str, str]) -> dict[str, Any]:
     tz = os.getenv("GOOGLE_CALENDAR_TIMEZONE", "Asia/Kolkata").strip() or "Asia/Kolkata"
     start = datetime.strptime(f"{booking['Date']} {booking['Time']}", "%Y-%m-%d %H:%M")

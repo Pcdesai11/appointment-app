@@ -1100,28 +1100,6 @@ def doctor_dashboard():
             flash("Chat cleared. Ask a new question anytime.", "success")
             return redirect(url_for("doctor_dashboard"))
 
-        if action == "share_calendar":
-            emails_raw = request.form.get("share_emails", "")
-            emails = [part.strip() for part in re.split(r"[,\s;]+", emails_raw) if part.strip()]
-            try:
-                from google_calendar import share_calendar_with_emails
-
-                ok, errors = share_calendar_with_emails(emails, role="reader")
-                if ok:
-                    flash(
-                        "Shared calendar with: "
-                        + ", ".join(ok)
-                        + ". They should get an email / see it under Other calendars.",
-                        "success",
-                    )
-                for err in errors:
-                    flash(err, "error")
-                if not ok and not errors:
-                    flash("Could not share calendar.", "error")
-            except Exception as exc:
-                flash(f"Could not share calendar: {exc}", "error")
-            return redirect(url_for("doctor_dashboard"))
-
         if action == "ask":
             question = request.form.get("question", "").strip()
             rows = read_appointments()
