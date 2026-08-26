@@ -6,7 +6,7 @@ import base64
 import json
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -152,39 +152,39 @@ def calendar_status_message() -> str:
         return f"Calendar setup error — {type(exc).__name__}: {exc}"
 
 
-def _calendar_timezone_name() -> str:
-    """Return a valid IANA timezone; fall back to Asia/Kolkata."""
-    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+# India Standard Time is always UTC+05:30 (no DST). Avoid zoneinfo/tzdata on Vercel.
+_IST = timezone(timedelta(hours=5, minutes=30))
+_DEFAULT_TZ_NAME = "Asia/Kolkata"
 
-    raw = os.getenv("GOOGLE_CALENDAR_TIMEZONE", "Asia/Kolkata") or "Asia/Kolkata"
+
+def _calendar_timezone_name() -> str:
+    raw = os.getenv("GOOGLE_CALENDAR_TIMEZONE", _DEFAULT_TZ_NAME) or _DEFAULT_TZ_NAME
     raw = raw.strip().strip('"').strip("'")
-    # Common mistakes people type in Vercel
     aliases = {
-        "ist": "Asia/Kolkata",
-        "india": "Asia/Kolkata",
-        "kolkata": "Asia/Kolkata",
-        "asia/calcutta": "Asia/Kolkata",
-        "calcutta": "Asia/Kolkata",
-        "in": "Asia/Kolkata",
+        "ist": _DEFAULT_TZ_NAME,
+        "india": _DEFAULT_TZ_NAME,
+        "kolkata": _DEFAULT_TZ_NAME,
+        "asia/calcutta": _DEFAULT_TZ_NAME,
+        "asia/kolkata": _DEFAULT_TZ_NAME,
+        "calcutta": _DEFAULT_TZ_NAME,
+        "in": _DEFAULT_TZ_NAME,
     }
-    candidate = aliases.get(raw.lower(), raw) or "Asia/Kolkata"
-    try:
-        ZoneInfo(candidate)
-        return candidate
-    except ZoneInfoNotFoundError:
-        return "Asia/Kolkata"
+    candidate = aliases.get(raw.lower(), raw) or _DEFAULT_TZ_NAME
+    # Only Asia/Kolkata is guaranteed valid for this clinic app.
+    if candidate != _DEFAULT_TZ_NAME:
+        # Still accept other IANA names as labels if user set them, but attach IST offset.
+        return candidate if "/" in candidate else _DEFAULT_TZ_NAME
+    return _DEFAULT_TZ_NAME
 
 
 def _as_google_time(dt: datetime) -> dict[str, str]:
-    """Build Google Calendar start/end with a reliable timezone."""
-    from zoneinfo import ZoneInfo
-
+    """Build Google Calendar start/end using a fixed +05:30 offset."""
     tz_name = _calendar_timezone_name()
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo(tz_name))
+        dt = dt.replace(tzinfo=_IST)
     else:
-        dt = dt.astimezone(ZoneInfo(tz_name))
-    # Include offset in dateTime; also send timeZone for clarity.
+        dt = dt.astimezone(_IST)
+    # Example: 2026-08-26T10:00:00+05:30
     return {"dateTime": dt.isoformat(), "timeZone": tz_name}
 
 
@@ -194,10 +194,8 @@ def test_calendar_write() -> str:
         return "Google Calendar is not configured."
     calendar_id = resolved_calendar_id()
     service = _service()
-    from zoneinfo import ZoneInfo
-
     tz_name = _calendar_timezone_name()
-    start = datetime.now(ZoneInfo(tz_name)).replace(microsecond=0) + timedelta(minutes=5)
+    start = datetime.now(_IST).replace(microsecond=0) + timedelta(minutes=5)
     end = start + timedelta(minutes=15)
     body = {
         "summary": "Khatna app test (safe to delete)",
@@ -243,12 +241,9 @@ def test_calendar_write() -> str:
 
 
 def _event_body(booking: dict[str, str]) -> dict[str, Any]:
-    from zoneinfo import ZoneInfo
-
-    tz_name = _calendar_timezone_name()
     start = datetime.strptime(
         f"{booking['Date']} {booking['Time']}", "%Y-%m-%d %H:%M"
-    ).replace(tzinfo=ZoneInfo(tz_name))
+    ).replace(tzinfo=_IST)
     end = start + timedelta(hours=1)
     description = (
         f"Baby: {booking.get('BabyName', '')}\n"

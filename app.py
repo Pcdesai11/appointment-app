@@ -1049,6 +1049,30 @@ def doctor_clear_booking(token: str):
     return redirect(url_for("doctor_dashboard"))
 
 
+@app.route("/doctor/sync-calendar/<token>", methods=["POST"])
+@require_doctor
+def doctor_sync_calendar(token: str):
+    booking = find_booking(token)
+    if not booking:
+        flash("Booking not found.", "error")
+        return redirect(url_for("doctor_dashboard"))
+    try:
+        from google_calendar import create_khatna_event
+
+        event_id = create_khatna_event(booking)
+        if not event_id:
+            flash("Calendar not configured.", "error")
+            return redirect(url_for("doctor_dashboard"))
+        booking["CalendarEventId"] = event_id
+        if not update_appointment(token, booking):
+            flash("Event created, but could not save calendar id.", "error")
+        else:
+            flash(f"Added {booking.get('BabyName') or 'booking'} to Google Calendar.", "success")
+    except Exception as exc:
+        flash(f"Could not sync to calendar: {exc}", "error")
+    return redirect(url_for("doctor_dashboard"))
+
+
 @app.route("/doctor/login", methods=["GET", "POST"])
 def doctor_login():
     from flask import session
