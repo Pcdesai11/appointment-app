@@ -56,6 +56,17 @@ app = Flask(
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "appointment-local-dev-key")
 
 
+@app.after_request
+def _no_store_html(response):
+    """Avoid browsers/CDN keeping stale patient/doctor HTML after deploys."""
+    content_type = response.headers.get("Content-Type", "")
+    if "text/html" in content_type:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 class _VercelPathMiddleware:
     """Restore the browser path when Vercel rewrites to /api/index."""
 
