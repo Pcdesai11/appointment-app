@@ -57,14 +57,6 @@ Time: {time_txt}
 Area: {area}
 Mobile: {mobile}
 
-Important precautions / મહત્વની સાવચેતીઓ:
-- The child should not eat anything for 2 hours before the appointment.
-  અપોઇન્ટમેન્ટ પહેલાં બે કલાક સુધી બાળકને કંઈ ખવડાવશો નહીં.
-- Keep the baby clean and dry.
-- Inform the doctor about any fever, cough, cold, allergy, or medicine.
-- Arrive 10–15 minutes early.
-- Follow the doctor's advice after the procedure.
-
 Thank you.
 """
 
@@ -81,15 +73,6 @@ Thank you.
     <tr><td style="padding: 4px 12px 4px 0;"><strong>Area</strong></td><td>{area}</td></tr>
     <tr><td style="padding: 4px 12px 4px 0;"><strong>Mobile</strong></td><td>{mobile}</td></tr>
   </table>
-  <h3>Important precautions · મહત્વની સાવચેતીઓ</h3>
-  <ul>
-    <li><strong>The child should not eat anything for 2 hours before the appointment.</strong><br/>
-      અપોઇન્ટમેન્ટ પહેલાં બે કલાક સુધી બાળકને કંઈ ખવડાવશો નહીં.</li>
-    <li>Keep the baby clean and dry.</li>
-    <li>Inform the doctor about any fever, cough, cold, allergy, or medicine.</li>
-    <li>Arrive 10–15 minutes early.</li>
-    <li>Follow the doctor's advice after the procedure.</li>
-  </ul>
   <p>Thank you.</p>
 </body>
 </html>
