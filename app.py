@@ -923,6 +923,13 @@ def patient_form():
                 print(f"Google Calendar create failed: {cal_exc}")
             append_appointment(booking)
             remember_booking(booking)
+            if booking.get("Email"):
+                try:
+                    from mailer import send_confirmation_email
+
+                    send_confirmation_email(booking, TIME_LABELS)
+                except Exception as mail_exc:
+                    print(f"Confirmation email failed: {mail_exc}")
             return redirect(url_for("booking_confirmation", token=booking["EditToken"]))
         except Exception as exc:
             flash(f"Could not submit right now. Please try again. ({exc})", "error")
@@ -967,6 +974,14 @@ def edit_booking(token: str):
             flash(error or "Could not update this booking.", "error")
             return redirect(url_for("edit_booking", token=token))
         flash("Booking updated successfully. · બુકિંગ અપડેટ થઈ ગયું.", "success")
+        updated = find_booking(token) or existing
+        if updated.get("Email"):
+            try:
+                from mailer import send_confirmation_email
+
+                send_confirmation_email(updated, TIME_LABELS)
+            except Exception as mail_exc:
+                print(f"Confirmation email failed: {mail_exc}")
         return redirect(url_for("booking_confirmation", token=token))
 
     return render_template(

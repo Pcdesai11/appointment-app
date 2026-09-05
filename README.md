@@ -37,6 +37,20 @@ Patient times are fixed: **10 AM, 1:30 PM, 5 PM** only.
 
 When a patient submits, the booking is saved to Excel **and** added to the calendar.
 
+## Confirmation email (optional)
+
+If the patient enters an email, a confirmation is sent when SMTP is configured in Vercel:
+
+| Name | Example |
+|---|---|
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | your sending Gmail |
+| `SMTP_PASSWORD` | Gmail App Password |
+| `SMTP_FROM` | optional display From (defaults to SMTP_USER) |
+
+For Gmail: enable 2-Step Verification → create an [App Password](https://myaccount.google.com/apppasswords), use that as `SMTP_PASSWORD`.
+
 ## Local run
 
 ```powershell
