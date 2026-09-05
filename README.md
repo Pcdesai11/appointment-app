@@ -39,7 +39,20 @@ When a patient submits, the booking is saved to Excel **and** added to the calen
 
 ## Confirmation email (optional)
 
-If the patient enters an email, a confirmation is sent when SMTP is configured in Vercel:
+If the patient enters an email, a confirmation is sent.
+
+### Resend (recommended)
+
+In Vercel set:
+
+| Name | Value |
+|---|---|
+| `RESEND_API_KEY` | your Resend API key |
+| `RESEND_FROM` | `onboarding@resend.dev` (testing) or `appointments@yourdomain.com` after domain verify |
+
+Redeploy, then submit a booking with an email.
+
+### SMTP (Gmail, etc.)
 
 | Name | Example |
 |---|---|
@@ -47,9 +60,7 @@ If the patient enters an email, a confirmation is sent when SMTP is configured i
 | `SMTP_PORT` | `587` |
 | `SMTP_USER` | your sending Gmail |
 | `SMTP_PASSWORD` | Gmail App Password |
-| `SMTP_FROM` | optional display From (defaults to SMTP_USER) |
-
-For Gmail: enable 2-Step Verification → create an [App Password](https://myaccount.google.com/apppasswords), use that as `SMTP_PASSWORD`.
+| `SMTP_FROM` | optional (defaults to SMTP_USER) |
 
 ## Local run
 
